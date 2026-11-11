@@ -26,9 +26,9 @@ push به main ─► تست ─► ساخت image ─► ghcr.io:443/mrdrliam/g
 ۱. **DNS**: برای هاست `checkbox.api.kassadev.com` (در `certificate.yaml` و `ingress.yaml`؛ هر دو را با هم عوض کنید)
    رکورد A/AAAA به همان IP ورودی Traefik که بقیه‌ی `*.api.kassadev.com` استفاده می‌کنند بسازید. بدون آن، گواهی HTTPS صادر نمی‌شود.
 
-۲. **push به GitHub**: بعد از اولین push روی `main`، workflow اجرا می‌شود و image و commit مربوط به digest ساخته می‌شود.
+۲. **push به GitHub**: روی `main` (یا با `gh workflow run backend.yml --ref main`) workflow اجرا می‌شود و image و commit مربوط به digest ساخته می‌شود.
 
-۳. **دسترسی Argo به مخزن**: اگر مخزن private است، مثل بقیه‌ی سرویس‌ها یک Secret در namespace `argocd` لازم است
+۳. **دسترسی Argo به مخزن**: مخزن عمومی است و لازم نیست. اگر خصوصی شد، مثل بقیه‌ی سرویس‌ها یک Secret در namespace `argocd` لازم است
    (توکن فقط‌خواندنی GitHub):
 
    ```bash
@@ -40,14 +40,9 @@ push به main ─► تست ─► ساخت image ─► ghcr.io:443/mrdrliam/g
    kubectl -n argocd label secret ghesta-repository argocd.argoproj.io/secret-type=repository
    ```
 
-۴. **دسترسی کلاستر به image**: بسته‌های ghcr به‌طور پیش‌فرض private هستند. یا بسته را در GitHub «Public» کنید،
-   یا Secret دریافت image بسازید (نام آن باید `ghcr-pull` باشد؛ namespace باید قبلاً ساخته شده باشد):
-
-   ```bash
-   kubectl create namespace ghesta   # اگر Argo هنوز نساخته
-   kubectl -n ghesta create secret docker-registry ghcr-pull \
-     --docker-server=ghcr.io:443 --docker-username=mrdrliam --docker-password=<GITHUB_PACKAGES_READ_TOKEN>
-   ```
+۴. **دسترسی کلاستر به image**: مخزن عمومی است و بسته‌ی ghcr هم از آن ارث می‌برد و عمومی است؛ Secret لازم نیست.
+   اگر مخزن را خصوصی کردید، بسته هم خصوصی می‌شود و باید یک Secret دریافت image به نام `ghcr-pull` در namespace `ghesta`
+   بسازید و `imagePullSecrets` را به `k8s/base/deployment.yaml` برگردانید.
 
 ۵. **ثبت در Argo** (فقط بعد از این‌که workflow اولین image را ساخت):
 
