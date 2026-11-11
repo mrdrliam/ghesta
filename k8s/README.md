@@ -44,9 +44,11 @@ push به main ─► تست ─► ساخت image ─► ghcr.io:443/mrdrliam/g
    اگر مخزن را خصوصی کردید، بسته هم خصوصی می‌شود و باید یک Secret دریافت image به نام `ghcr-pull` در namespace `ghesta`
    بسازید و `imagePullSecrets` را به `k8s/base/deployment.yaml` برگردانید.
 
-۵. **ثبت در Argo** (فقط بعد از این‌که workflow اولین image را ساخت):
+۵. **ثبت در Argo** (فقط بعد از این‌که workflow اولین image را ساخت). پروژه‌ی Argo عمداً دسترسی cluster-scoped ندارد
+   (مثل بقیه‌ی سرویس‌ها)، پس namespace را یک‌بار دستی می‌سازیم:
 
    ```bash
+   kubectl apply -f k8s/argocd/namespace.yaml
    kubectl apply -f k8s/argocd/project.yaml -f k8s/argocd/prod.yaml
    ```
 

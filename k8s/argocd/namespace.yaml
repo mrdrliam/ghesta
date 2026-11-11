@@ -1,0 +1,9 @@
+# Created once by hand (the Argo CD project deliberately has no cluster-scoped permissions).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ghesta
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
