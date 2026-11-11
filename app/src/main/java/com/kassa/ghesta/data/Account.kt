@@ -109,7 +109,7 @@ private object SecureStore {
 class Session(val username: String, val access: String, val refresh: String)
 
 /** Production server used by release builds until the user types another address. */
-private const val DEFAULT_SERVER_URL = "https://ghesta.api.kassadev.com"
+private const val DEFAULT_SERVER_URL = "https://checkbox.api.kassadev.com"
 
 /** The signed-in account: tokens, server address, and every call that talks about identity. */
 object Account {

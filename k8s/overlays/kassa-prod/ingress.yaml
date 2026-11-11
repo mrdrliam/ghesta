@@ -13,7 +13,7 @@ metadata:
 spec:
   ingressClassName: traefik
   rules:
-    - host: ghesta.api.kassadev.com   # CHANGE if you use another hostname (also in certificate.yaml)
+    - host: checkbox.api.kassadev.com
       http:
         paths:
           - path: /
@@ -25,5 +25,5 @@ spec:
                   name: http
   tls:
     - hosts:
-        - ghesta.api.kassadev.com
+        - checkbox.api.kassadev.com
       secretName: ghesta-public-tls

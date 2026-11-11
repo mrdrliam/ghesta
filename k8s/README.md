@@ -23,7 +23,7 @@ push به main ─► تست ─► ساخت image ─► ghcr.io:443/mrdrliam/g
 
 ## راه‌اندازی (یک‌بار)
 
-۱. **DNS**: برای هاست `ghesta.api.kassadev.com` (در `certificate.yaml` و `ingress.yaml`؛ هر دو را با هم عوض کنید)
+۱. **DNS**: برای هاست `checkbox.api.kassadev.com` (در `certificate.yaml` و `ingress.yaml`؛ هر دو را با هم عوض کنید)
    رکورد A/AAAA به همان IP ورودی Traefik که بقیه‌ی `*.api.kassadev.com` استفاده می‌کنند بسازید. بدون آن، گواهی HTTPS صادر نمی‌شود.
 
 ۲. **push به GitHub**: بعد از اولین push روی `main`، workflow اجرا می‌شود و image و commit مربوط به digest ساخته می‌شود.
@@ -59,7 +59,7 @@ push به main ─► تست ─► ساخت image ─► ghcr.io:443/mrdrliam/g
 
    ```bash
    kubectl -n ghesta get pods,pvc,ingress,certificate
-   curl https://ghesta.api.kassadev.com/healthz     # {"status":"ok","version":"0.1.0"}
+   curl https://checkbox.api.kassadev.com/healthz     # {"status":"ok","version":"0.1.0"}
    ```
 
    سپس در اپ (نسخه‌ی release) همان آدرس به‌طور پیش‌فرض تنظیم است؛ ثبت‌نام کنید و کد بازیابی را نگه دارید.

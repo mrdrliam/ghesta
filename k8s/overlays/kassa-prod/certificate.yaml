@@ -7,7 +7,7 @@ metadata:
 spec:
   secretName: ghesta-public-tls
   dnsNames:
-    - ghesta.api.kassadev.com   # CHANGE if you use another hostname (also in ingress.yaml)
+    - checkbox.api.kassadev.com
   issuerRef:
     name: letsencrypt-production
     kind: ClusterIssuer
