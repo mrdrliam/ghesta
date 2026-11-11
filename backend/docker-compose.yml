@@ -1,0 +1,13 @@
+services:
+  ghesta:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "8080:8080"      # put an HTTPS reverse proxy (Caddy/nginx) in front for production
+    environment:
+      TRUST_PROXY: "false"     # set to "true" only when behind your own reverse proxy
+      ALLOW_REGISTER: "true"   # "false" = closed server (only existing accounts can log in)
+    volumes:
+      - ghesta-data:/data
+volumes:
+  ghesta-data:
