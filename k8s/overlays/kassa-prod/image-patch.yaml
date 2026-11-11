@@ -7,9 +7,9 @@ spec:
     metadata:
       annotations:
         ghesta.app/version: "0.1.0"
-        ghesta.app/build-id: "bootstrap"
-        ghesta.app/source-revision: "bootstrap"
+        ghesta.app/build-id: "42978064259.1"
+        ghesta.app/source-revision: "2b9d0ab254711f5940f78f2a4d4aa6645848ab9f"
     spec:
       containers:
         - name: ghesta-server
-          image: ghcr.io:443/mrdrliam/ghesta-server:0.1.0-prod.bootstrap
+          image: ghcr.io:443/mrdrliam/ghesta-server:0.1.0-prod.42978064259.1@sha256:5014824ccbd0dbfc5113b2ad1bfda121e2f5e40d1ccc57b0925466d12d8f3d94
