@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <!-- Tokens are encrypted with a device-bound key; a restored copy would be useless, so never back it up. -->
+    <exclude domain="sharedpref" path="ghesta_secure.xml" />
+    <exclude domain="sharedpref" path="ghesta_account.xml" />
+</full-backup-content>
