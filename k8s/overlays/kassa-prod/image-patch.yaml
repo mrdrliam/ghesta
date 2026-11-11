@@ -1,0 +1,15 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ghesta-server
+spec:
+  template:
+    metadata:
+      annotations:
+        ghesta.app/version: "0.1.0"
+        ghesta.app/build-id: "bootstrap"
+        ghesta.app/source-revision: "bootstrap"
+    spec:
+      containers:
+        - name: ghesta-server
+          image: ghcr.io:443/mrdrliam/ghesta-server:0.1.0-prod.bootstrap

@@ -1,0 +1,18 @@
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: ghesta-public
+  labels:
+    app.kubernetes.io/name: ghesta-server
+spec:
+  secretName: ghesta-public-tls
+  dnsNames:
+    - ghesta.api.kassadev.com   # CHANGE if you use another hostname (also in ingress.yaml)
+  issuerRef:
+    name: letsencrypt-production
+    kind: ClusterIssuer
+    group: cert-manager.io
+  privateKey:
+    algorithm: RSA
+    size: 2048
+    rotationPolicy: Always

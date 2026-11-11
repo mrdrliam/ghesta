@@ -1,0 +1,17 @@
+# SQLite needs exactly one writer, so the database lives on a single ReadWriteOnce volume.
+# local-fast has reclaimPolicy Retain: deleting the app never deletes the data.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ghesta-data
+  labels:
+    app: ghesta-server
+    app.kubernetes.io/name: ghesta-server
+    app.kubernetes.io/part-of: ghesta
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-fast
+  resources:
+    requests:
+      storage: 2Gi

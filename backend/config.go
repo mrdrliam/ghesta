@@ -18,6 +18,9 @@ type Config struct {
 	MaxLoginFailures int           // wrong passwords before the account is locked
 	LockDuration     time.Duration // how long it stays locked
 	MaxRecords       int           // max items per user
+	BackupDir        string        // where nightly snapshots go; empty = disabled
+	BackupInterval   time.Duration // time between snapshots
+	BackupKeep       int           // how many snapshots to keep
 }
 
 func loadConfig() Config {
@@ -32,6 +35,9 @@ func loadConfig() Config {
 		MaxLoginFailures: envInt("MAX_LOGIN_FAILURES", 5),
 		LockDuration:     envDuration("LOCK_DURATION", 15*time.Minute),
 		MaxRecords:       envInt("MAX_RECORDS", 5000),
+		BackupDir:        env("BACKUP_DIR", ""),
+		BackupInterval:   envDuration("BACKUP_INTERVAL", 24*time.Hour),
+		BackupKeep:       envInt("BACKUP_KEEP", 7),
 	}
 }
 

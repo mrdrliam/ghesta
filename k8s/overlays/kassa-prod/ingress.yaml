@@ -1,0 +1,29 @@
+# HTTPS only on purpose: passwords must never travel over plain HTTP.
+# (cert-manager creates its own temporary ingress for the HTTP-01 challenge.)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ghesta-https
+  labels:
+    app.kubernetes.io/name: ghesta-server
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls: "true"
+    argocd.argoproj.io/ignore-healthcheck: "true"
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: ghesta.api.kassadev.com   # CHANGE if you use another hostname (also in certificate.yaml)
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: ghesta-server
+                port:
+                  name: http
+  tls:
+    - hosts:
+        - ghesta.api.kassadev.com
+      secretName: ghesta-public-tls

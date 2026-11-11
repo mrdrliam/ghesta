@@ -1,0 +1,92 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ghesta-server
+  labels:
+    app: ghesta-server
+    app.kubernetes.io/name: ghesta-server
+    app.kubernetes.io/component: backend
+    app.kubernetes.io/part-of: ghesta
+spec:
+  # One replica and Recreate: SQLite must never be opened by two pods at once.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: ghesta-server
+  template:
+    metadata:
+      labels:
+        app: ghesta-server
+        app.kubernetes.io/name: ghesta-server
+        app.kubernetes.io/component: backend
+        app.kubernetes.io/part-of: ghesta
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
+      # ghcr packages are private by default; if the package is public this secret is simply not needed.
+      imagePullSecrets:
+        - name: ghcr-pull
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: ghesta-server
+          image: ghcr.io:443/mrdrliam/ghesta-server:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: ghesta-server-config
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 3
+            failureThreshold: 20
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 50m
+              memory: 96Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: ghesta-data
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi

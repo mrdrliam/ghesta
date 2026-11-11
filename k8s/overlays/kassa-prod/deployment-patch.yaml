@@ -1,0 +1,9 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ghesta-server
+spec:
+  template:
+    spec:
+      nodeSelector:
+        kassa.ir/workload: "true"

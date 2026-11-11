@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ghesta-server-config
+  labels:
+    app: ghesta-server
+    app.kubernetes.io/name: ghesta-server
+    app.kubernetes.io/part-of: ghesta
+data:
+  ADDR: ":8080"
+  DB_PATH: "/data/ghesta.db"
+  # Daily consistent snapshots next to the database (kept: 7).
+  BACKUP_DIR: "/data/backups"
+  BACKUP_INTERVAL: "24h"
+  BACKUP_KEEP: "7"
+  # Behind Traefik: read the client IP from X-Forwarded-For (needed for per-IP rate limiting).
+  TRUST_PROXY: "true"
+  # Per-IP limit is generous on purpose (many phones share one mobile-network IP);
+  # the real brute-force protection is the per-account lockout below.
+  AUTH_RATE_PER_MIN: "120"
+  MAX_LOGIN_FAILURES: "5"
+  LOCK_DURATION: "15m"
+  ALLOW_REGISTER: "true"

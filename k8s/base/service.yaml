@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: ghesta-server
+  labels:
+    app: ghesta-server
+    app.kubernetes.io/name: ghesta-server
+    app.kubernetes.io/part-of: ghesta
+spec:
+  type: ClusterIP
+  selector:
+    app: ghesta-server
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80
+      targetPort: http

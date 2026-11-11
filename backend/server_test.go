@@ -2,10 +2,12 @@ package main
 
 import (
 	"bytes"
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -355,5 +357,37 @@ func TestRecordLimit(t *testing.T) {
 	st, r := c.do("POST", "/v1/sync", tok, resp{"cursor": 0, "changes": []any{item("c", 1, "3")}})
 	if st != 413 || r["error"] != "too_many_records" {
 		t.Fatalf("expected record limit, got %d %v", st, r)
+	}
+}
+
+func TestBackupSnapshotIsRestorableAndPruned(t *testing.T) {
+	c := newTC(t)
+	c.register("backed_up", "secret123")
+	dir := filepath.Join(t.TempDir(), "backups")
+
+	var last string
+	for i := 0; i < 3; i++ {
+		name, err := c.s.backupOnce(dir, 2)
+		if err != nil {
+			t.Fatalf("backup %d: %v", i, err)
+		}
+		last = name
+	}
+	entries, _ := os.ReadDir(dir)
+	if len(entries) != 2 {
+		t.Fatalf("expected 2 snapshots after pruning, got %d", len(entries))
+	}
+	if info, _ := os.Stat(last); info.Mode().Perm() != 0o600 {
+		t.Fatalf("snapshot must be owner-only, got %v", info.Mode().Perm())
+	}
+	// the snapshot opens as a normal database and contains the account
+	snap, err := sql.Open("sqlite", "file:"+last+"?mode=ro")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer snap.Close()
+	var n int
+	if err := snap.QueryRow(`SELECT COUNT(*) FROM users WHERE username='backed_up'`).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("snapshot should contain the user: n=%d err=%v", n, err)
 	}
 }

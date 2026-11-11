@@ -10,6 +10,9 @@ import (
 	"time"
 )
 
+// version is set at build time: -ldflags "-X main.version=1.2.3"
+var version = "dev"
+
 func newServer(cfg Config) (*server, error) {
 	db, err := openDB(cfg.DBPath)
 	if err != nil {
@@ -25,7 +28,7 @@ func newServer(cfg Config) (*server, error) {
 func (s *server) routes() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /healthz", func(w http.ResponseWriter, r *http.Request) {
-		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
+		writeJSON(w, http.StatusOK, map[string]string{"status": "ok", "version": version})
 	})
 
 	mux.HandleFunc("POST /v1/auth/register", s.rateLimited(s.register))
@@ -67,6 +70,7 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	go s.cleanupLoop(ctx)
+	go s.backupLoop(ctx)
 
 	srv := &http.Server{
 		Addr:              cfg.Addr,
@@ -83,7 +87,7 @@ func main() {
 		srv.Shutdown(shutdown)
 	}()
 
-	log.Printf("ghesta server listening on %s (db: %s, registration open: %v)", cfg.Addr, cfg.DBPath, cfg.AllowRegister)
+	log.Printf("ghesta server %s listening on %s (db: %s, registration open: %v, backups: %q)", version, cfg.Addr, cfg.DBPath, cfg.AllowRegister, cfg.BackupDir)
 	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatal(err)
 	}
