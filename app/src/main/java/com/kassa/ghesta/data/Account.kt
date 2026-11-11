@@ -108,6 +108,9 @@ private object SecureStore {
 
 class Session(val username: String, val access: String, val refresh: String)
 
+/** Production server used by release builds until the user types another address. */
+private const val DEFAULT_SERVER_URL = "https://ghesta.api.kassadev.com"
+
 /** The signed-in account: tokens, server address, and every call that talks about identity. */
 object Account {
     var session by mutableStateOf<Session?>(null)
@@ -130,7 +133,7 @@ object Account {
         ctx = context.applicationContext
         val debuggable = context.applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE != 0
         // 10.0.2.2 is how the Android emulator reaches the developer machine
-        serverUrl = prefs().getString("server", null) ?: if (debuggable) "http://10.0.2.2:8080" else ""
+        serverUrl = prefs().getString("server", null) ?: if (debuggable) "http://10.0.2.2:8080" else DEFAULT_SERVER_URL
         SecureStore.get(ctx!!, "session")?.let {
             try {
                 val o = JSONObject(it)
