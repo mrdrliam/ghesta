@@ -240,9 +240,22 @@ private fun AppContent() {
             BottomBar(app, overdueCount, barH)
         }
 
+        AnimatedVisibility(
+            visible = app.detailId != null,
+            enter = slideInHorizontally { -it } + fadeIn(),
+            exit = slideOutHorizontally { -it } + fadeOut(),
+        ) {
+            val item = Store.item(shownId)
+            if (item != null) DetailScreen(app, item.id) else app.detailId = null
+        }
+
+        // drawn above the loan page too, otherwise "undo" toasts shown while it is open are hidden behind it
         SnackbarHost(
             snack,
-            Modifier.align(Alignment.BottomCenter).padding(bottom = barH + bottom + 14.dp, start = 16.dp, end = 16.dp),
+            Modifier.align(Alignment.BottomCenter).padding(
+                bottom = (if (app.detailId != null) 92.dp else barH + 14.dp) + bottom,
+                start = 16.dp, end = 16.dp,
+            ),
         ) { data ->
             Snackbar(
                 data,
@@ -251,15 +264,6 @@ private fun AppContent() {
                 contentColor = if (c.dark) c.ink else c.bg,
                 actionColor = c.gold2,
             )
-        }
-
-        AnimatedVisibility(
-            visible = app.detailId != null,
-            enter = slideInHorizontally { -it } + fadeIn(),
-            exit = slideOutHorizontally { -it } + fadeOut(),
-        ) {
-            val item = Store.item(shownId)
-            if (item != null) DetailScreen(app, item.id) else app.detailId = null
         }
 
         if (app.showAdd) AddSheet(app) { app.showAdd = false }

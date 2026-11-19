@@ -129,6 +129,11 @@ object Store {
         item.copy(installments = item.installments.map { if (it.id == instId) it.copy(paidAt = if (paid) date else null) else it })
     }
 
+    /** Sets new due dates for the given installments (id -> date). Used by "shift the remaining installments" and its undo. */
+    fun setInstallmentDates(itemId: String, dates: Map<String, LocalDate>) = updateItem(itemId) { item ->
+        item.copy(installments = item.installments.map { x -> dates[x.id]?.let { x.copy(due = it) } ?: x }.sortedBy { it.due })
+    }
+
     fun updateInstallment(itemId: String, instId: String, due: LocalDate, amount: Long, paidAt: LocalDate?) = updateItem(itemId) { item ->
         item.copy(installments = item.installments.map { if (it.id == instId) it.copy(due = due, amount = amount, paidAt = paidAt) else it }.sortedBy { it.due })
     }
@@ -157,7 +162,8 @@ object Store {
         save()
         appContext?.let {
             Reminders.schedule(it)
-            GhestaWidget.updateAll(it) // the widget hides names and amounts while the app lock is on
+            Reminders.refresh(it)        // turning the app lock on replaces detailed notifications with counts only
+            GhestaWidget.updateAll(it)   // the widget hides names and amounts while the app lock is on
         }
     }
 
@@ -190,7 +196,7 @@ object Store {
         pendingCount = pending.size
         save()
         appContext?.let {
-            Reminders.dismissIfResolved(it)
+            Reminders.refresh(it)
             GhestaWidget.updateAll(it)
         }
         Sync.requestSync()
@@ -258,7 +264,7 @@ object Store {
         pendingCount = pending.size
         save()
         appContext?.let {
-            Reminders.dismissIfResolved(it)
+            Reminders.refresh(it)
             GhestaWidget.updateAll(it)
         }
     }

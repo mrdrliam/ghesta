@@ -68,6 +68,7 @@ fun DetailScreen(app: AppState, itemId: String) {
     var showPaid by remember(itemId) { mutableStateOf(false) }
     var editItem by remember(itemId) { mutableStateOf(false) }
     var editInst by remember(itemId) { mutableStateOf<String?>(null) }
+    var showShift by remember(itemId) { mutableStateOf(false) }
     var confirmDelete by remember(itemId) { mutableStateOf(false) }
     var confirmRemovePayment by remember(itemId) { mutableStateOf<String?>(null) }
     var confirmUnsettle by remember(itemId) { mutableStateOf(false) }
@@ -120,7 +121,7 @@ fun DetailScreen(app: AppState, itemId: String) {
 
             if (item.kind == Kind.INST) {
                 if (unpaid.isNotEmpty()) {
-                    item { SectionTitle("قسط‌های باقی‌مانده (${unpaid.size.fa()})") }
+                    item { SectionTitle("قسط‌های باقی‌مانده (${unpaid.size.fa()})", action = "جابه‌جایی تاریخ‌ها") { showShift = true } }
                     item {
                         GCard {
                             unpaid.forEachIndexed { i, (idx, inst) ->
@@ -232,6 +233,7 @@ fun DetailScreen(app: AppState, itemId: String) {
 
     if (editItem) EditItemSheet(item) { editItem = false }
     editInst?.let { id -> InstallmentSheet(item, id) { editInst = null } }
+    if (showShift) ShiftSheet(app, item) { showShift = false }
     if (confirmDelete) {
         ConfirmDialog(
             title = "حذف «${item.title}»؟",

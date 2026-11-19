@@ -51,7 +51,7 @@ class MainActivity : FragmentActivity() {
         Store.onResume()
         // Re-arm the daily reminder every time the app is opened (covers aggressive battery managers).
         Reminders.schedule(this)
-        Reminders.dismissIfResolved(this)
+        Reminders.refresh(this)
         GhestaWidget.updateAll(this)
         Sync.requestSync(0)
     }

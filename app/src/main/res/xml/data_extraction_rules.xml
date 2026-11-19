@@ -3,9 +3,11 @@
     <cloud-backup>
         <exclude domain="sharedpref" path="ghesta_secure.xml" />
         <exclude domain="sharedpref" path="ghesta_account.xml" />
+        <exclude domain="sharedpref" path="ghesta_snooze.xml" />
     </cloud-backup>
     <device-transfer>
         <exclude domain="sharedpref" path="ghesta_secure.xml" />
         <exclude domain="sharedpref" path="ghesta_account.xml" />
+        <exclude domain="sharedpref" path="ghesta_snooze.xml" />
     </device-transfer>
 </data-extraction-rules>
