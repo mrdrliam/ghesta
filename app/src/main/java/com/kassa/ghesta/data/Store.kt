@@ -71,12 +71,13 @@ object Store {
         title: String, party: String, note: String,
         amount: Long, count: Int, stepMonths: Int,
         first: LocalDate, paidCount: Int, lastAmount: Long = amount,
+        targets: List<PayTarget> = emptyList(),
     ): String {
         val dates = Jalali.schedule(first, count, stepMonths)
         val list = dates.mapIndexed { i, d ->
             Installment(newId(), d, if (i == count - 1) lastAmount else amount, if (i < paidCount) d else null)
         }
-        val item = Item(newId(), Kind.INST, title.trim(), party.trim(), note.trim(), today, installments = list)
+        val item = Item(newId(), Kind.INST, title.trim(), party.trim(), note.trim(), today, installments = list, targets = targets)
         mutate { it + item }
         return item.id
     }
@@ -84,9 +85,10 @@ object Store {
     fun addDebt(
         title: String, party: String, note: String,
         dir: Dir, total: Long, paidSoFar: Long, due: LocalDate?,
+        targets: List<PayTarget> = emptyList(),
     ): String {
         val payments = if (paidSoFar > 0) listOf(Payment(newId(), today, paidSoFar.coerceAtMost(total))) else emptyList()
-        val item = Item(newId(), Kind.DEBT, title.trim(), party.trim(), note.trim(), today, dir = dir, total = total, due = due, payments = payments)
+        val item = Item(newId(), Kind.DEBT, title.trim(), party.trim(), note.trim(), today, dir = dir, total = total, due = due, payments = payments, targets = targets)
         mutate { it + item }
         return item.id
     }
@@ -348,12 +350,19 @@ object Store {
             put("payments", JSONArray().also { a ->
                 payments.forEach { a.put(JSONObject().put("id", it.id).put("date", it.date.toString()).put("amount", it.amount)) }
             })
+            put("targets", JSONArray().also { a ->
+                targets.forEach {
+                    a.put(JSONObject().put("id", it.id).put("type", it.type.name).put("number", it.number)
+                        .put("holder", it.holder).put("amount", it.amount))
+                }
+            })
         }
     }
 
     fun itemFromJson(o: JSONObject): Item {
         val inst = o.optJSONArray("installments") ?: JSONArray()
         val pay = o.optJSONArray("payments") ?: JSONArray()
+        val tg = o.optJSONArray("targets") ?: JSONArray()
         return Item(
             id = o.getString("id"),
             kind = Kind.valueOf(o.getString("kind")),
@@ -374,6 +383,14 @@ object Store {
             payments = (0 until pay.length()).map {
                 val x = pay.getJSONObject(it)
                 Payment(x.getString("id"), LocalDate.parse(x.getString("date")), x.getLong("amount"))
+            },
+            targets = (0 until tg.length()).map {
+                val x = tg.getJSONObject(it)
+                PayTarget(
+                    x.getString("id"),
+                    runCatching { TargetType.valueOf(x.getString("type")) }.getOrDefault(TargetType.ACCOUNT),
+                    x.getString("number"), x.optString("holder", ""), x.optLong("amount", 0),
+                )
             },
             updatedAt = o.optLong("updatedAt", 0),
         )

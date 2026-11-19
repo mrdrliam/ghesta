@@ -108,6 +108,7 @@ fun AddSheet(app: AppState, onDismiss: () -> Unit) {
         var kind by remember { mutableIntStateOf(0) }
         var tried by remember { mutableStateOf(false) }
         var pick by remember { mutableStateOf<String?>(null) }
+        val targets = remember { androidx.compose.runtime.mutableStateListOf<TargetDraft>() }
 
         // installment
         var title by remember { mutableStateOf("") }
@@ -250,6 +251,7 @@ fun AddSheet(app: AppState, onDismiss: () -> Unit) {
                 DateField("سررسید (اختیاری)", dDue, { pick = "due" }, placeholder = "بدون سررسید", onClear = { dDue = null })
                 GField("یادداشت (اختیاری)", dNote, { dNote = it }, singleLine = false, imeAction = androidx.compose.ui.text.input.ImeAction.Done)
             }
+            TargetsEditor(targets, unit, tried)
             Spacer(Modifier.height(4.dp))
         }
 
@@ -257,11 +259,12 @@ fun AddSheet(app: AppState, onDismiss: () -> Unit) {
             PrimaryButton("ثبت") {
                 tried = true
                 val wasEmpty = Store.items.isEmpty()
+                if (targets.firstError() != null) return@PrimaryButton
                 if (kind == 0 && instValid && res != null) {
-                    Store.addInstallments(title, party, "", res.amount, res.count, step, first, paidN, res.lastAmount)
+                    Store.addInstallments(title, party, "", res.amount, res.count, step, first, paidN, res.lastAmount, targets.toTargets())
                     app.toast("«${title.trim()}» ثبت شد")
                 } else if (kind == 1 && debtValid) {
-                    Store.addDebt(dTitle, dParty, dNote, if (dir == 0) Dir.OWE else Dir.OWED, dTotalN, dPaidN, dDue)
+                    Store.addDebt(dTitle, dParty, dNote, if (dir == 0) Dir.OWE else Dir.OWED, dTotalN, dPaidN, dDue, targets.toTargets())
                     app.toast("«${dTitle.trim()}» ثبت شد")
                 } else return@PrimaryButton
                 close()
@@ -351,6 +354,7 @@ fun EditItemSheet(item: Item, onDismiss: () -> Unit) {
         var dir by remember { mutableIntStateOf(if (item.dir == Dir.OWE) 0 else 1) }
         var pick by remember { mutableStateOf(false) }
         var tried by remember { mutableStateOf(false) }
+        val targets = remember { androidx.compose.runtime.mutableStateListOf<TargetDraft>().also { it.addAll(item.targets.toDrafts()) } }
 
         SheetTitle("ویرایش")
         Column(
@@ -370,22 +374,24 @@ fun EditItemSheet(item: Item, onDismiss: () -> Unit) {
                 DateField("سررسید", due, { pick = true }, placeholder = "بدون سررسید", onClear = { due = null })
             }
             GField("یادداشت", note, { note = it }, singleLine = false, imeAction = androidx.compose.ui.text.input.ImeAction.Done)
+            TargetsEditor(targets, unit, tried)
             Spacer(Modifier.height(4.dp))
         }
         SheetFooter {
             PrimaryButton("ذخیره") {
                 tried = true
-                if (title.isBlank()) return@PrimaryButton
+                if (title.isBlank() || targets.firstError() != null) return@PrimaryButton
+                val newTargets = targets.toTargets()
                 if (item.kind == Kind.INST) {
                     val a = amount.toLongOrNull() ?: 0L
                     if (item.installments.any { it.paidAt == null } && a <= 0) return@PrimaryButton
-                    Store.updateItem(item.id) { it.copy(title = title.trim(), party = party.trim(), note = note.trim()) }
+                    Store.updateItem(item.id) { it.copy(title = title.trim(), party = party.trim(), note = note.trim(), targets = newTargets) }
                     if (item.installments.any { it.paidAt == null } && a != item.firstUnpaidAmount()) Store.setUnpaidAmount(item.id, a)
                 } else {
                     val t = total.toLongOrNull() ?: 0L
                     if (t <= 0) return@PrimaryButton
                     Store.updateItem(item.id) {
-                        it.copy(title = title.trim(), party = party.trim(), note = note.trim(), total = t, due = due, dir = if (dir == 0) Dir.OWE else Dir.OWED)
+                        it.copy(title = title.trim(), party = party.trim(), note = note.trim(), total = t, due = due, dir = if (dir == 0) Dir.OWE else Dir.OWED, targets = newTargets)
                     }
                 }
                 close()
@@ -481,6 +487,9 @@ fun PaymentSheet(app: AppState, item: Item, onDismiss: () -> Unit) {
             T("«${item.title}» · مانده: ${fmtNum(remaining)} $unit", 13, FontWeight.Medium, G.c.ink2)
             MoneyField(if (owe) "مبلغ پرداختی" else "مبلغ دریافتی", amount, { amount = it }, unit, error = tried && (a <= 0 || a > remaining))
             if (tried && a > remaining) T("مبلغ از مانده‌ی بدهی بیشتر است.", 12, FontWeight.Medium, G.c.danger)
+            if (item.targets.isNotEmpty()) {
+                TargetsCard(item.targets, if (owe) "پرداخت به" else "دریافت در", null) { app.toast(it) }
+            }
             DateField("تاریخ", date, { pick = true })
             Spacer(Modifier.height(4.dp))
         }
@@ -540,6 +549,9 @@ fun PayInstallmentSheet(app: AppState, item: Item, instId: String, onDismiss: ()
                     }
                     if (overdueDays > 0) Pill("${overdueDays.toInt().fa()} روز تأخیر", Tone.Danger)
                 }
+            }
+            if (item.targets.isNotEmpty()) {
+                TargetsCard(item.targets, "پرداخت به", null) { app.toast(it) }
             }
             DateField("تاریخ پرداخت", date, { pick = true }, hint = "اگر قسط را روز دیگری پرداخته‌اید، تاریخ واقعی را بزنید.")
             Spacer(Modifier.height(4.dp))

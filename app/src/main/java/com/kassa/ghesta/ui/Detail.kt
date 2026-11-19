@@ -105,6 +105,16 @@ fun DetailScreen(app: AppState, itemId: String) {
                 }
             }
 
+            if (item.targets.isNotEmpty()) {
+                item {
+                    TargetsCard(
+                        item.targets,
+                        title = if (item.kind == Kind.DEBT && item.dir == Dir.OWED) "واریز به این شماره‌ها" else "پرداخت به",
+                        subtitle = if (item.kind == Kind.INST) "هر قسط را به این شماره‌ها واریز کنید" else null,
+                    ) { app.toast(it) }
+                }
+            }
+
             if (item.kind == Kind.INST) {
                 if (unpaid.isNotEmpty()) {
                     item { SectionTitle("قسط‌های باقی‌مانده (${unpaid.size.fa()})") }

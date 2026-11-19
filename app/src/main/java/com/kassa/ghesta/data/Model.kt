@@ -9,6 +9,21 @@ enum class Dir { OWE, OWED }
 
 enum class ItemState { DONE, OVERDUE, SOON, OK }
 
+enum class TargetType { CARD, SHEBA, ACCOUNT }
+
+/**
+ * Where to send the money for a loan or debt: a card, Sheba (IBAN) or account number,
+ * with the amount that goes to it. [number] is stored the way it is pasted into a banking app:
+ * a card is 16 digits, a Sheba is "IR" + 24 digits, an account is digits (dashes allowed).
+ */
+data class PayTarget(
+    val id: String,
+    val type: TargetType,
+    val number: String,
+    val holder: String = "",
+    val amount: Long = 0,
+)
+
 data class Installment(
     val id: String,
     val due: LocalDate,
@@ -38,6 +53,8 @@ data class Item(
     val total: Long = 0,
     val due: LocalDate? = null,
     val payments: List<Payment> = emptyList(),
+    /** Cards / accounts to pay into (optional). */
+    val targets: List<PayTarget> = emptyList(),
     /** Last local edit time (epoch ms). Used to resolve conflicts when syncing between devices. */
     val updatedAt: Long = 0,
 )

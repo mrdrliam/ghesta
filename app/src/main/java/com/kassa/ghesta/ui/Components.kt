@@ -483,6 +483,8 @@ fun GField(
     hint: String? = null,
     singleLine: Boolean = true,
     imeAction: ImeAction = ImeAction.Next,
+    /** Numbers such as card numbers read left-to-right even inside the RTL layout. */
+    ltr: Boolean = false,
 ) {
     val c = G.c
     val shape = RoundedCornerShape(16.dp)
@@ -500,14 +502,23 @@ fun GField(
                 value = value,
                 onValueChange = onValueChange,
                 singleLine = singleLine,
-                textStyle = TextStyle(fontFamily = Vazir, fontSize = 16.sp, color = c.ink, lineHeight = 24.sp),
+                textStyle = TextStyle(
+                    fontFamily = Vazir, fontSize = 16.sp, color = c.ink, lineHeight = 24.sp,
+                    textDirection = if (ltr) androidx.compose.ui.text.style.TextDirection.Ltr else androidx.compose.ui.text.style.TextDirection.Unspecified,
+                ),
                 cursorBrush = SolidColor(c.gold),
                 keyboardOptions = KeyboardOptions(keyboardType = keyboardType, imeAction = imeAction),
                 visualTransformation = transformation,
                 decorationBox = { inner ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(Modifier.weight(1f)) {
-                            if (value.isEmpty()) T(placeholder, 16, color = c.muted.copy(alpha = 0.8f))
+                            if (value.isEmpty()) {
+                                if (ltr) {
+                                    androidx.compose.runtime.CompositionLocalProvider(
+                                        androidx.compose.ui.platform.LocalLayoutDirection provides androidx.compose.ui.unit.LayoutDirection.Ltr,
+                                    ) { T(placeholder, 16, color = c.muted.copy(alpha = 0.8f)) }
+                                } else T(placeholder, 16, color = c.muted.copy(alpha = 0.8f))
+                            }
                             inner()
                         }
                         if (trailing != null) T(trailing, 12, color = c.muted, modifier = Modifier.padding(start = 8.dp))
