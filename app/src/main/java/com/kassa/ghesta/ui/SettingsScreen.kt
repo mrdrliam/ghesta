@@ -84,6 +84,8 @@ fun SettingsScreen(app: AppState, pad: PaddingValues) {
 
         item { AccountCard(app) }
 
+        item { LockCard(app) }
+
         // ---------------------------------------------------------------- reminders
         item {
             SettingsCard("یادآوری‌ها") {
@@ -244,5 +246,68 @@ private fun ActionRow(title: String, subtitle: String, danger: Boolean = false, 
     Column(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(16.dp)) {
         T(title, 15, FontWeight.SemiBold, if (danger) c.danger else c.ink)
         T(subtitle, 12, color = c.muted)
+    }
+}
+
+
+private val graceOptions = listOf(10 to "فوری", 60 to "۱ دقیقه", 300 to "۵ دقیقه")
+
+/** App lock: off by default, switched on here. */
+@Composable
+private fun LockCard(app: AppState) {
+    val c = G.c
+    val s = Store.settings
+    val activity = LocalContext.current as? androidx.fragment.app.FragmentActivity
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        SectionTitle("امنیت")
+        GCard {
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    T("قفل برنامه", 15, FontWeight.SemiBold)
+                    T("باز کردن برنامه با اثر انگشت، چهره یا قفل صفحه‌ی گوشی", 12, color = c.muted)
+                }
+                Switch(
+                    checked = s.appLock,
+                    onCheckedChange = { on ->
+                        if (activity == null) return@Switch
+                        if (!on) {
+                            Store.updateSettings { it.copy(appLock = false) }
+                        } else if (!AppLock.isAvailable(activity)) {
+                            app.toast("اول در تنظیمات گوشی، قفل صفحه یا اثر انگشت را فعال کنید")
+                        } else {
+                            // prove it works before relying on it
+                            AppLock.authenticate(activity, "فعال‌سازی قفل برنامه", onSuccess = {
+                                Store.updateSettings { it.copy(appLock = true) }
+                                AppLock.unlock()
+                                app.toast("قفل برنامه روشن شد")
+                            })
+                        }
+                    },
+                    colors = SwitchDefaults.colors(
+                        checkedTrackColor = c.ok, checkedThumbColor = Color.White, checkedBorderColor = c.ok,
+                        uncheckedTrackColor = c.surface2, uncheckedThumbColor = c.muted, uncheckedBorderColor = c.line,
+                    ),
+                )
+            }
+            if (s.appLock) {
+                Divider()
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    T("بعد از چه مدت دوباره قفل شود؟", 13, FontWeight.SemiBold, c.ink2)
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(graceOptions) { (sec, label) ->
+                            GChip(label, s.lockGraceSec == sec, { Store.updateSettings { it.copy(lockGraceSec = sec) } })
+                        }
+                    }
+                    T(
+                        "برای کپی کردن شماره‌ی کارت و برگشتن از اپ بانک، «۱ دقیقه» یا «۵ دقیقه» را انتخاب کنید. " +
+                            "با قفل روشن، عکس برنامه در لیست برنامه‌های اخیر پنهان می‌شود و اسکرین‌شات گرفتن ممکن نیست.",
+                        12, color = c.muted,
+                    )
+                }
+            }
+        }
     }
 }

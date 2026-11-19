@@ -2,7 +2,7 @@ package com.kassa.ghesta.data
 
 import java.time.LocalDate
 
-enum class Kind { INST, DEBT }
+enum class Kind { INST, DEBT, CHEQUE }
 
 /** OWE = I owe someone. OWED = someone owes me. */
 enum class Dir { OWE, OWED }
@@ -41,7 +41,9 @@ data class Payment(
 
 /**
  * One tracked obligation. [Kind.INST] has a schedule of [installments];
- * [Kind.DEBT] has a [total], an optional [due] date and a list of partial [payments].
+ * [Kind.DEBT] has a [total], an optional [due] date and a list of partial [payments];
+ * [Kind.CHEQUE] is a single amount ([total]) that is settled on [due]: [Dir.OWE] is a cheque I issued
+ * (it must be covered), [Dir.OWED] a cheque I received (I must cash it). It is settled by one payment.
  */
 data class Item(
     val id: String,
@@ -57,6 +59,11 @@ data class Item(
     val payments: List<Payment> = emptyList(),
     /** Cards / accounts to pay into (optional). */
     val targets: List<PayTarget> = emptyList(),
+    /** Cheque only: serial or Sayad number, and the bank it is drawn on. */
+    val chequeNo: String = "",
+    val bank: String = "",
+    /** Cheque only: the cheque bounced, which needs attention even before the due date. */
+    val bounced: Boolean = false,
     /** Last local edit time (epoch ms). Used to resolve conflicts when syncing between devices. */
     val updatedAt: Long = 0,
 )
@@ -74,6 +81,7 @@ data class Due(
     val label: String
         get() = when {
             item.kind == Kind.INST -> "قسط ${n.fa()} از ${of.fa()}"
+            item.kind == Kind.CHEQUE -> if (item.dir == Dir.OWE) "چک صادره" else "چک دریافتی"
             item.dir == Dir.OWE -> "بدهی"
             else -> "طلب"
         }
@@ -97,25 +105,28 @@ data class Info(
 val Item.paidTotal: Long
     get() = when (kind) {
         Kind.INST -> installments.filter { it.paidAt != null }.sumOf { it.amount }
-        Kind.DEBT -> payments.sumOf { it.amount }
+        Kind.DEBT, Kind.CHEQUE -> payments.sumOf { it.amount }
     }
 
 val Item.totalAmount: Long
     get() = when (kind) {
         Kind.INST -> installments.sumOf { it.amount }
-        Kind.DEBT -> total
+        Kind.DEBT, Kind.CHEQUE -> total
     }
 
 val Item.remaining: Long get() = (totalAmount - paidTotal).coerceAtLeast(0)
 
 /** Receivables (someone owes me) never count as my obligations. */
-val Item.isObligation: Boolean get() = !(kind == Kind.DEBT && dir == Dir.OWED)
+val Item.isObligation: Boolean get() = !(kind != Kind.INST && dir == Dir.OWED)
+
+/** Everything that is a single sum with an optional due date (a debt, or a cheque). */
+val Item.isLumpSum: Boolean get() = kind != Kind.INST
 
 fun Item.dues(): List<Due> = when (kind) {
     Kind.INST -> installments.mapIndexed { i, x ->
         Due(this, x.id, i + 1, installments.size, x.due, x.amount, x.paidAt != null)
     }
-    Kind.DEBT -> {
+    Kind.DEBT, Kind.CHEQUE -> {
         val rem = remaining
         val d = due
         if (d != null) listOf(Due(this, "debt", 1, 1, d, rem, rem <= 0)) else emptyList()
@@ -130,16 +141,16 @@ fun Item.info(today: LocalDate): Info {
     val next = unpaid.firstOrNull { !it.date.isBefore(today) }
     val done = when (kind) {
         Kind.INST -> installments.isNotEmpty() && installments.all { it.paidAt != null }
-        Kind.DEBT -> total > 0 && remaining <= 0
+        Kind.DEBT, Kind.CHEQUE -> total > 0 && remaining <= 0
     }
     val count = if (kind == Kind.INST) installments.size else 1
     val paidCount = when (kind) {
         Kind.INST -> installments.count { it.paidAt != null }
-        Kind.DEBT -> if (done) 1 else 0
+        Kind.DEBT, Kind.CHEQUE -> if (done) 1 else 0
     }
     val state = when {
         done -> ItemState.DONE
-        overdue.isNotEmpty() -> ItemState.OVERDUE
+        overdue.isNotEmpty() || (kind == Kind.CHEQUE && bounced) -> ItemState.OVERDUE
         next != null && daysBetween(today, next.date) <= 7 -> ItemState.SOON
         else -> ItemState.OK
     }
@@ -152,6 +163,10 @@ data class Settings(
     val notify: Boolean = true,
     val remindDays: Set<Int> = setOf(3, 1, 0),
     val remindHour: Int = 9,
+    /** Ask for the fingerprint / screen lock when the app is opened. Off by default. */
+    val appLock: Boolean = false,
+    /** How long the app may be left before it asks again (seconds). */
+    val lockGraceSec: Int = 60,
 ) {
     /** The whole app works in Toman only. */
     val unit: String get() = "تومان"

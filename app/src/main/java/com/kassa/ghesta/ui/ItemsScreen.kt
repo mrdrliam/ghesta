@@ -30,7 +30,7 @@ import com.kassa.ghesta.data.info
 import com.kassa.ghesta.ui.theme.G
 import java.time.LocalDate
 
-private val filterNames = listOf("همه", "عقب‌افتاده", "قسط و وام", "بدهی و طلب", "تسویه‌شده")
+private val filterNames = listOf("همه", "عقب‌افتاده", "قسط و وام", "بدهی و طلب", "چک", "تسویه‌شده")
 
 private fun rank(i: Info) = when (i.state) {
     ItemState.OVERDUE -> 0
@@ -50,7 +50,8 @@ fun ItemsScreen(app: AppState, pad: PaddingValues) {
         1 -> p.second.state == ItemState.OVERDUE && p.first.dir == Dir.OWE
         2 -> p.first.kind == Kind.INST && !p.second.done
         3 -> p.first.kind == Kind.DEBT && !p.second.done
-        4 -> p.second.done
+        4 -> p.first.kind == Kind.CHEQUE && !p.second.done
+        5 -> p.second.done
         else -> true
     }
 
@@ -80,7 +81,8 @@ fun ItemsScreen(app: AppState, pad: PaddingValues) {
                     when {
                         items.isEmpty() -> "هنوز چیزی ثبت نکرده‌اید. با دکمه‌ی + شروع کنید."
                         app.filter == 1 -> "هیچ مورد عقب‌افتاده‌ای ندارید. آفرین!"
-                        app.filter == 4 -> "هنوز موردی کاملاً تسویه نشده است."
+                        app.filter == 4 -> "چک ثبت‌شده‌ای ندارید."
+                        app.filter == 5 -> "هنوز موردی کاملاً تسویه نشده است."
                         else -> "موردی پیدا نشد."
                     },
                     14, color = c.muted, align = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(vertical = 40.dp),
@@ -105,9 +107,14 @@ fun ItemCard(item: Item, info: Info, today: LocalDate, onClick: () -> Unit) {
                 Column(Modifier.weight(1f)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         T(item.title, 16, FontWeight.Bold, maxLines = 1, modifier = Modifier.weight(1f, fill = false))
-                        if (item.kind == Kind.DEBT) Pill(if (item.dir == Dir.OWE) "بدهی من" else "طلب من", Tone.Gold)
+                        when (item.kind) {
+                            Kind.DEBT -> Pill(if (item.dir == Dir.OWE) "بدهی من" else "طلب من", Tone.Gold)
+                            Kind.CHEQUE -> Pill(if (item.dir == Dir.OWE) "چک صادره" else "چک دریافتی", Tone.Gold)
+                            Kind.INST -> {}
+                        }
                     }
-                    if (item.party.isNotBlank()) T(item.party, 12, color = c.muted, maxLines = 1)
+                    val sub = if (item.kind == Kind.CHEQUE) listOf(item.party, item.bank).filter { it.isNotBlank() }.joinToString(" · ") else item.party
+                    if (sub.isNotBlank()) T(sub, 12, color = c.muted, maxLines = 1)
                 }
                 StatePill(item, info, today)
             }

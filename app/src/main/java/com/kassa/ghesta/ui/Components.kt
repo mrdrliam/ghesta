@@ -30,6 +30,7 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Create
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Person
@@ -261,7 +262,11 @@ fun GProgress(progress: Float, modifier: Modifier = Modifier, color: Color = G.c
 
 // ------------------------------------------------------------------ icons / badges
 
-fun kindIcon(kind: Kind): ImageVector = if (kind == Kind.INST) Icons.Filled.DateRange else Icons.Filled.Person
+fun kindIcon(kind: Kind): ImageVector = when (kind) {
+    Kind.INST -> Icons.Filled.DateRange
+    Kind.DEBT -> Icons.Filled.Person
+    Kind.CHEQUE -> Icons.Filled.Create
+}
 
 @Composable
 fun KindIcon(kind: Kind, tone: Tone, size: Dp = 42.dp) {
@@ -282,7 +287,11 @@ fun stateTone(s: ItemState): Tone = when (s) {
 fun StatePill(item: Item, info: Info, today: LocalDate) {
     val text = when (info.state) {
         ItemState.DONE -> "تسویه شد"
-        ItemState.OVERDUE -> if (item.kind == Kind.INST) "${info.overdue.size.fa()} قسط عقب‌افتاده" else "عقب‌افتاده"
+        ItemState.OVERDUE -> when {
+            item.kind == Kind.INST -> "${info.overdue.size.fa()} قسط عقب‌افتاده"
+            item.kind == Kind.CHEQUE && item.bounced -> "برگشتی"
+            else -> "عقب‌افتاده"
+        }
         ItemState.SOON, ItemState.OK -> info.next?.let { relLabel(daysBetween(today, it.date)) } ?: "بدون سررسید"
     }
     Pill(text, stateTone(info.state))

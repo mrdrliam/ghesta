@@ -96,6 +96,9 @@ class AppState(
     var showAdd by mutableStateOf(false)
     var payForId by mutableStateOf<String?>(null)
 
+    /** A cheque whose "it passed / I cashed it" confirmation sheet is open. */
+    var settleChequeId by mutableStateOf<String?>(null)
+
     /** Set after sign-up / recovery: the one-time recovery code that must be shown to the user. */
     var pendingRecovery by mutableStateOf<String?>(null)
 
@@ -150,7 +153,11 @@ class AppState(
     }
 
     fun payDue(due: Due) {
-        if (due.item.kind == Kind.INST) togglePaid(due.item.id, due.key) else payForId = due.item.id
+        when (due.item.kind) {
+            Kind.INST -> togglePaid(due.item.id, due.key)
+            Kind.CHEQUE -> settleChequeId = due.item.id
+            Kind.DEBT -> payForId = due.item.id
+        }
     }
 }
 
@@ -191,6 +198,18 @@ private fun AppContent() {
         while (true) {
             delay(60_000)
             Sync.requestSync(0)
+        }
+    }
+
+    // opened from a widget row: go straight to that item
+    val pendingOpen = Store.pendingOpenItem
+    LaunchedEffect(pendingOpen) {
+        if (pendingOpen != null) {
+            if (Store.item(pendingOpen) != null) {
+                app.tab = 1
+                app.detailId = pendingOpen
+            }
+            Store.pendingOpenItem = null
         }
     }
 
@@ -244,6 +263,10 @@ private fun AppContent() {
         }
 
         if (app.showAdd) AddSheet(app) { app.showAdd = false }
+        app.settleChequeId?.let { id ->
+            val ch = Store.item(id)
+            if (ch != null) ChequeSettleSheet(app, ch) { app.settleChequeId = null } else app.settleChequeId = null
+        }
         app.payForId?.let { id ->
             val it = Store.item(id)
             if (it != null) PaymentSheet(app, it) { app.payForId = null } else app.payForId = null
@@ -275,6 +298,8 @@ private fun AppContent() {
         if (app.pendingRecovery == null && app.showDataChoice) DataChoiceDialog { app.showDataChoice = false }
 
         ConfettiOverlay()
+
+        if (AppLock.locked) LockScreen()
     }
 }
 

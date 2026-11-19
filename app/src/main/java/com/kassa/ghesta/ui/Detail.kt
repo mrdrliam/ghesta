@@ -1,6 +1,7 @@
 package com.kassa.ghesta.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -50,6 +51,7 @@ import com.kassa.ghesta.data.fa
 import com.kassa.ghesta.data.fmtDate
 import com.kassa.ghesta.data.fmtNum
 import com.kassa.ghesta.data.info
+import com.kassa.ghesta.data.isLumpSum
 import com.kassa.ghesta.data.relLabel
 import com.kassa.ghesta.ui.theme.G
 
@@ -68,10 +70,11 @@ fun DetailScreen(app: AppState, itemId: String) {
     var editInst by remember(itemId) { mutableStateOf<String?>(null) }
     var confirmDelete by remember(itemId) { mutableStateOf(false) }
     var confirmRemovePayment by remember(itemId) { mutableStateOf<String?>(null) }
+    var confirmUnsettle by remember(itemId) { mutableStateOf(false) }
 
     val unpaid = item.installments.withIndex().filter { it.value.paidAt == null }
     val paid = item.installments.withIndex().filter { it.value.paidAt != null }
-    val showPayButton = item.kind == Kind.DEBT && !info.done
+    val showPayButton = item.isLumpSum && !info.done
 
     Box(
         Modifier.fillMaxSize().background(c.bg).pointerInput(Unit) { detectTapGestures { } },
@@ -154,6 +157,33 @@ fun DetailScreen(app: AppState, itemId: String) {
                         }
                     }
                 }
+            } else if (item.kind == Kind.CHEQUE) {
+                item { ChequeInfoCard(item, info, today, onCopied = { app.toast(it) }) }
+                if (info.done) {
+                    item {
+                        GCard(bg = c.okBg, border = c.ok.copy(alpha = 0.25f)) {
+                            Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f)) {
+                                    T(if (item.dir == Dir.OWE) "چک پاس شد" else "چک وصول شد", 15, FontWeight.Bold, c.ok)
+                                    item.payments.lastOrNull()?.let { T(fmtDate(it.date, weekday = true), 12, color = c.ink2) }
+                                }
+                                T(
+                                    "لغو", 13, FontWeight.SemiBold, c.danger,
+                                    Modifier.clip(RoundedCornerShape(10.dp)).clickable { confirmUnsettle = true }.padding(8.dp),
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    item {
+                        GhostButton(
+                            if (item.bounced) "برگشت چک را لغو کن" else "چک برگشت خورد",
+                            { Store.setBounced(item.id, !item.bounced) },
+                            Modifier.fillMaxWidth(),
+                            color = if (item.bounced) c.ink2 else c.danger,
+                        )
+                    }
+                }
             } else {
                 item {
                     DebtDueCard(item, info, today)
@@ -191,7 +221,11 @@ fun DetailScreen(app: AppState, itemId: String) {
                     .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color.Transparent, c.bg, c.bg)))
                     .padding(start = 16.dp, end = 16.dp, top = 24.dp, bottom = bottom + 16.dp),
             ) {
-                PrimaryButton(if (item.dir == Dir.OWE) "ثبت پرداخت" else "ثبت دریافت") { app.payForId = item.id }
+                if (item.kind == Kind.CHEQUE) {
+                    PrimaryButton(if (item.dir == Dir.OWE) "چک پاس شد" else "چک وصول شد") { app.settleChequeId = item.id }
+                } else {
+                    PrimaryButton(if (item.dir == Dir.OWE) "ثبت پرداخت" else "ثبت دریافت") { app.payForId = item.id }
+                }
             }
         }
     }
@@ -209,6 +243,17 @@ fun DetailScreen(app: AppState, itemId: String) {
             app.detailId = null
             Store.delete(item.id)
             app.toast("«${item.title}» حذف شد")
+        }
+    }
+    if (confirmUnsettle) {
+        ConfirmDialog(
+            title = "لغو ${if (item.dir == Dir.OWE) "پاس شدن" else "وصول"} چک؟",
+            text = "چک دوباره به حالت «در انتظار» برمی‌گردد.",
+            confirm = "بله، لغو شود",
+            onDismiss = { confirmUnsettle = false },
+        ) {
+            confirmUnsettle = false
+            Store.unsettleCheque(item.id)
         }
     }
     confirmRemovePayment?.let { pid ->
@@ -246,8 +291,12 @@ private fun DetailHero(item: Item, info: com.kassa.ghesta.data.Info, unit: Strin
             }
             when (info.state) {
                 ItemState.DONE -> HeroBadge("تسویه شد", Color(0xFF52CBA0))
-                ItemState.OVERDUE -> HeroBadge("عقب‌افتاده", Color(0xFFFF8A96))
-                else -> if (item.kind == Kind.DEBT) HeroBadge(if (item.dir == Dir.OWE) "بدهی من" else "طلب من", c.gold2)
+                ItemState.OVERDUE -> HeroBadge(if (item.kind == Kind.CHEQUE && item.bounced) "برگشتی" else "عقب‌افتاده", Color(0xFFFF8A96))
+                else -> when (item.kind) {
+                    Kind.DEBT -> HeroBadge(if (item.dir == Dir.OWE) "بدهی من" else "طلب من", c.gold2)
+                    Kind.CHEQUE -> HeroBadge(if (item.dir == Dir.OWE) "چک صادره" else "چک دریافتی", c.gold2)
+                    Kind.INST -> {}
+                }
             }
         }
         Column {
@@ -261,8 +310,11 @@ private fun DetailHero(item: Item, info: com.kassa.ghesta.data.Info, unit: Strin
             GProgress(info.progress, color = c.gold2, height = 8.dp, track = Color.White.copy(alpha = 0.14f))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 T(
-                    if (item.kind == Kind.INST) "${info.paidCount.fa()} از ${info.count.fa()} قسط پرداخت شده"
-                    else "${(info.progress * 100).toInt().fa()}٪ پرداخت شده",
+                    when {
+                        item.kind == Kind.INST -> "${info.paidCount.fa()} از ${info.count.fa()} قسط پرداخت شده"
+                        item.kind == Kind.CHEQUE -> if (info.done) (if (item.dir == Dir.OWE) "پاس شده" else "وصول شده") else "در انتظار"
+                        else -> "${(info.progress * 100).toInt().fa()}٪ پرداخت شده"
+                    },
                     12, FontWeight.Medium, Color.White.copy(alpha = 0.8f),
                 )
                 T("کل: ${fmtNum(info.total)}", 12, FontWeight.Medium, Color.White.copy(alpha = 0.8f))
@@ -319,6 +371,53 @@ private fun DebtDueCard(item: Item, info: com.kassa.ghesta.data.Info, today: jav
             if (d != null && !info.done) {
                 val diff = daysBetween(today, d)
                 Pill(relLabel(diff), if (diff < 0) Tone.Danger else if (diff <= 3) Tone.Warn else Tone.Neutral)
+            }
+        }
+    }
+}
+
+
+@Composable
+private fun ChequeInfoCard(item: Item, info: com.kassa.ghesta.data.Info, today: java.time.LocalDate, onCopied: (String) -> Unit) {
+    val c = G.c
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    GCard {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    T("سررسید", 12, FontWeight.Medium, c.muted)
+                    T(item.due?.let { fmtDate(it, weekday = true) } ?: "تعیین نشده", 16, FontWeight.Bold)
+                }
+                val d = item.due
+                if (d != null && !info.done) {
+                    val diff = daysBetween(today, d)
+                    Pill(relLabel(diff), if (diff < 0) Tone.Danger else if (diff <= 3) Tone.Warn else Tone.Neutral)
+                }
+            }
+            if (item.bank.isNotBlank()) {
+                Divider()
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    T("بانک", 13, color = c.ink2)
+                    T(item.bank, 14, FontWeight.SemiBold)
+                }
+            }
+            if (item.chequeNo.isNotBlank()) {
+                Divider()
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    T("شماره چک", 13, color = c.ink2, modifier = Modifier.weight(1f))
+                    androidx.compose.runtime.CompositionLocalProvider(
+                        androidx.compose.ui.platform.LocalLayoutDirection provides androidx.compose.ui.unit.LayoutDirection.Ltr,
+                    ) {
+                        T(item.chequeNo.chunked(4).joinToString(" ").fa(), 14, FontWeight.SemiBold)
+                    }
+                    Box(
+                        Modifier.size(34.dp).clip(RoundedCornerShape(10.dp)).border(1.dp, c.line, RoundedCornerShape(10.dp)).clickable {
+                            copyText(ctx, "cheque", item.chequeNo)
+                            onCopied("شماره چک کپی شد")
+                        },
+                        contentAlignment = Alignment.Center,
+                    ) { CopyIcon(c.ink2, 16) }
+                }
             }
         }
     }

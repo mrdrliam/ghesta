@@ -6,6 +6,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.kassa.ghesta.notify.Reminders
+import com.kassa.ghesta.widget.GhestaWidget
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -40,6 +41,9 @@ object Store {
     /** Number of local changes not yet confirmed by the server. */
     var pendingCount by mutableIntStateOf(0)
         private set
+
+    /** Set when the app is opened from a widget row; the UI opens that item's page and clears it. */
+    var pendingOpenItem by mutableStateOf<String?>(null)
 
     var syncCursor: Long = 0
         private set
@@ -93,6 +97,30 @@ object Store {
         return item.id
     }
 
+    fun addCheque(
+        title: String, party: String, note: String,
+        dir: Dir, amount: Long, due: LocalDate, chequeNo: String, bank: String,
+    ): String {
+        val item = Item(
+            newId(), Kind.CHEQUE, title.trim(), party.trim(), note.trim(), today,
+            dir = dir, total = amount, due = due, chequeNo = chequeNo.trim(), bank = bank.trim(),
+        )
+        mutate { it + item }
+        return item.id
+    }
+
+    /** A cheque is covered / cashed in one go: record a payment of everything that is left. */
+    fun settleCheque(itemId: String, date: LocalDate) {
+        val item = item(itemId) ?: return
+        val left = item.remaining
+        if (left > 0) updateItem(itemId) { it.copy(payments = it.payments + Payment(newId(), date, left), bounced = false) }
+    }
+
+    /** Takes a settled cheque back to "pending". */
+    fun unsettleCheque(itemId: String) = updateItem(itemId) { it.copy(payments = emptyList()) }
+
+    fun setBounced(itemId: String, bounced: Boolean) = updateItem(itemId) { it.copy(bounced = bounced) }
+
     fun updateItem(id: String, transform: (Item) -> Item) = mutate { list -> list.map { if (it.id == id) transform(it) else it } }
 
     fun delete(id: String) = mutate { list -> list.filterNot { it.id == id } }
@@ -127,7 +155,10 @@ object Store {
     fun updateSettings(transform: (Settings) -> Settings) {
         settings = transform(settings)
         save()
-        appContext?.let { Reminders.schedule(it) }
+        appContext?.let {
+            Reminders.schedule(it)
+            GhestaWidget.updateAll(it) // the widget hides names and amounts while the app lock is on
+        }
     }
 
     /** Deletes everything (and, if signed in, it is deleted from the account on the next sync). */
@@ -158,6 +189,10 @@ object Store {
         items = stamped
         pendingCount = pending.size
         save()
+        appContext?.let {
+            Reminders.dismissIfResolved(it)
+            GhestaWidget.updateAll(it)
+        }
         Sync.requestSync()
     }
 
@@ -222,6 +257,10 @@ object Store {
         syncCursor = cursor
         pendingCount = pending.size
         save()
+        appContext?.let {
+            Reminders.dismissIfResolved(it)
+            GhestaWidget.updateAll(it)
+        }
     }
 
     /** After signing in with data already on the phone: upload all of it (merge by newest edit). */
@@ -291,6 +330,8 @@ object Store {
             put("theme", settings.theme)
             put("notify", settings.notify)
             put("remindHour", settings.remindHour)
+            put("appLock", settings.appLock)
+            put("lockGraceSec", settings.lockGraceSec)
             put("remindDays", JSONArray(settings.remindDays.sorted()))
         })
         root.put("items", JSONArray().also { arr -> items.forEach { arr.put(itemToJson(it)) } })
@@ -329,6 +370,8 @@ object Store {
             theme = s.optInt("theme", base.theme),
             notify = s.optBoolean("notify", base.notify),
             remindHour = s.optInt("remindHour", base.remindHour).coerceIn(0, 23),
+            appLock = s.optBoolean("appLock", base.appLock),
+            lockGraceSec = s.optInt("lockGraceSec", base.lockGraceSec).coerceIn(5, 3600),
             remindDays = s.optJSONArray("remindDays")?.let { a -> (0 until a.length()).map { a.getInt(it) }.toSet() } ?: base.remindDays,
         )
         return parsed to newSettings
@@ -341,6 +384,7 @@ object Store {
             put("dir", dir.name); put("total", total)
             put("due", due?.toString() ?: JSONObject.NULL)
             put("updatedAt", updatedAt)
+            put("chequeNo", chequeNo); put("bank", bank); put("bounced", bounced)
             put("installments", JSONArray().also { a ->
                 installments.forEach {
                     a.put(JSONObject().put("id", it.id).put("due", it.due.toString()).put("amount", it.amount)
@@ -392,6 +436,9 @@ object Store {
                     x.getString("number"), x.optString("holder", ""), x.optLong("amount", 0),
                 )
             },
+            chequeNo = o.optString("chequeNo", ""),
+            bank = o.optString("bank", ""),
+            bounced = o.optBoolean("bounced", false),
             updatedAt = o.optLong("updatedAt", 0),
         )
     }

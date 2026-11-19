@@ -11,14 +11,23 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.kassa.ghesta.MainActivity
 import com.kassa.ghesta.R
+import com.kassa.ghesta.widget.GhestaWidget
+import com.kassa.ghesta.data.Account
 import com.kassa.ghesta.data.Due
+import com.kassa.ghesta.data.Kind
 import com.kassa.ghesta.data.Store
+import com.kassa.ghesta.data.Sync
 import com.kassa.ghesta.data.daysBetween
 import com.kassa.ghesta.data.dues
 import com.kassa.ghesta.data.fa
 import com.kassa.ghesta.data.fmtNum
 import com.kassa.ghesta.data.isObligation
 import com.kassa.ghesta.data.relLabel
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.ZonedDateTime
@@ -64,7 +73,8 @@ object Reminders {
     fun relevantDues(today: LocalDate): List<Due> {
         val offsets = Store.settings.remindDays
         return Store.items
-            .filter { it.isObligation }
+            // my obligations, plus every cheque (a cheque I received must be cashed on time too)
+            .filter { it.isObligation || it.kind == Kind.CHEQUE }
             .flatMap { it.dues() }
             .filter { !it.paid }
             .filter {
@@ -72,6 +82,16 @@ object Reminders {
                 diff < 0 || diff in offsets.map { o -> o.toLong() }
             }
             .sortedBy { it.date }
+    }
+
+    /**
+     * Removes the digest from the shade when nothing needs attention any more
+     * (e.g. the last overdue installment was paid on another device).
+     */
+    fun dismissIfResolved(ctx: Context) {
+        if (relevantDues(LocalDate.now()).isEmpty()) {
+            NotificationManagerCompat.from(ctx).cancel(NOTIF_ID)
+        }
     }
 
     fun canNotify(ctx: Context): Boolean = NotificationManagerCompat.from(ctx).areNotificationsEnabled()
@@ -104,7 +124,7 @@ object Reminders {
             }
             summary = "مجموع: ${fmtNum(list.sumOf { it.amount })} $unit"
             lines = list.take(7).map {
-                "${it.item.title} · ${it.label} · ${fmtNum(it.amount)} · ${relLabel(daysBetween(today, it.date))}"
+                "${it.item.title} — ${it.label} — ${fmtNum(it.amount)} — ${relLabel(daysBetween(today, it.date))}"
             }
         }
 
@@ -137,10 +157,33 @@ object Reminders {
 }
 
 class AlarmReceiver : BroadcastReceiver() {
+    /**
+     * Fires the daily digest. When signed in, the phone first pulls the latest data from the server
+     * (an installment paid on another device must not be nagged about), but never waits long:
+     * offline or slow, the digest is built from what the phone already has.
+     */
     override fun onReceive(context: Context, intent: Intent?) {
         Store.init(context)
-        Reminders.fire(context)
-        Reminders.schedule(context)
+        Account.init(context)
+        val pending = goAsync()
+        CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate).launch {
+            try {
+                if (Account.signedIn) withTimeoutOrNull(SYNC_BUDGET_MS) { Sync.syncNow() }
+            } catch (_: Exception) {
+            }
+            try {
+                Reminders.fire(context)
+                Reminders.schedule(context)
+                GhestaWidget.updateAll(context)
+            } finally {
+                pending.finish()
+            }
+        }
+    }
+
+    private companion object {
+        /** A broadcast receiver must finish within ~10 s, so stay well below that. */
+        const val SYNC_BUDGET_MS = 7_000L
     }
 }
 

@@ -132,6 +132,16 @@ fun AddSheet(app: AppState, onDismiss: () -> Unit) {
         var dDue by remember { mutableStateOf<LocalDate?>(null) }
         var dNote by remember { mutableStateOf("") }
 
+        // cheque
+        var cDir by remember { mutableIntStateOf(0) }
+        var cTitle by remember { mutableStateOf("") }
+        var cParty by remember { mutableStateOf("") }
+        var cAmount by remember { mutableStateOf("") }
+        var cDue by remember { mutableStateOf<LocalDate?>(null) }
+        var cNo by remember { mutableStateOf("") }
+        var cBank by remember { mutableStateOf("") }
+        var cNote by remember { mutableStateOf("") }
+
         val m = calcModes[mode]
         val countN = count.toIntOrNull() ?: 0
         val paidN = paidCount.toIntOrNull() ?: 0
@@ -147,10 +157,12 @@ fun AddSheet(app: AppState, onDismiss: () -> Unit) {
         val dTotalN = dTotal.toLongOrNull() ?: 0L
         val dPaidN = dPaid.toLongOrNull() ?: 0L
         val debtValid = dTitle.isNotBlank() && dTotalN > 0 && dPaidN <= dTotalN
+        val cAmountN = cAmount.toLongOrNull() ?: 0L
+        val chequeValid = cTitle.isNotBlank() && cAmountN > 0 && cDue != null
 
         SheetTitle("مورد جدید")
         Box(Modifier.padding(horizontal = 20.dp, vertical = 6.dp)) {
-            Segmented(listOf("قسط / وام", "بدهی / طلب"), kind, { kind = it; tried = false })
+            Segmented(listOf("قسط / وام", "بدهی / طلب", "چک"), kind, { kind = it; tried = false })
         }
 
         Column(
@@ -235,7 +247,7 @@ fun AddSheet(app: AppState, onDismiss: () -> Unit) {
                         T("با پر کردن موارد بالا، نتیجه‌ی محاسبه همین‌جا نشان داده می‌شود.", 13, color = c.muted, modifier = Modifier.padding(16.dp))
                     }
                 }
-            } else {
+            } else if (kind == 1) {
                 Segmented(listOf("بدهکارم", "طلبکارم"), dir, { dir = it })
                 GField(
                     "عنوان", dTitle, { dTitle = it },
@@ -250,8 +262,31 @@ fun AddSheet(app: AppState, onDismiss: () -> Unit) {
                 )
                 DateField("سررسید (اختیاری)", dDue, { pick = "due" }, placeholder = "بدون سررسید", onClear = { dDue = null })
                 GField("یادداشت (اختیاری)", dNote, { dNote = it }, singleLine = false, imeAction = androidx.compose.ui.text.input.ImeAction.Done)
+            } else {
+                Segmented(listOf("چک صادره (من داده‌ام)", "چک دریافتی (به من داده‌اند)"), cDir, { cDir = it })
+                GField(
+                    "عنوان", cTitle, { cTitle = it },
+                    placeholder = if (cDir == 0) "مثلاً چک بابت اجاره" else "مثلاً چک مشتری",
+                    error = tried && cTitle.isBlank(), hint = if (tried && cTitle.isBlank()) "عنوان را بنویسید" else null,
+                )
+                GField(
+                    if (cDir == 0) "در وجه (اختیاری)" else "از طرف (اختیاری)", cParty, { cParty = it },
+                    placeholder = "مثلاً علی رضایی",
+                )
+                MoneyField("مبلغ چک", cAmount, { cAmount = it }, unit, error = tried && cAmountN <= 0)
+                DateField(
+                    "تاریخ سررسید چک", cDue, { pick = "cdue" }, placeholder = "انتخاب تاریخ",
+                    hint = if (tried && cDue == null) "تاریخ سررسید را انتخاب کنید" else "به تاریخ سررسید یادآوری می‌شوید.",
+                )
+                GField("بانک (اختیاری)", cBank, { cBank = it }, placeholder = "مثلاً بانک ملی")
+                GField(
+                    "شماره چک یا شناسه‌ی صیاد (اختیاری)", cNo, { cNo = it.digitsOnly().take(16) },
+                    placeholder = "۱۶ رقم", keyboardType = androidx.compose.ui.text.input.KeyboardType.Number,
+                    transformation = remember { DigitsTransformation(false) }, ltr = true,
+                )
+                GField("یادداشت (اختیاری)", cNote, { cNote = it }, singleLine = false, imeAction = androidx.compose.ui.text.input.ImeAction.Done)
             }
-            TargetsEditor(targets, unit, tried)
+            if (kind != 2) TargetsEditor(targets, unit, tried)
             Spacer(Modifier.height(4.dp))
         }
 
@@ -259,13 +294,16 @@ fun AddSheet(app: AppState, onDismiss: () -> Unit) {
             PrimaryButton("ثبت") {
                 tried = true
                 val wasEmpty = Store.items.isEmpty()
-                if (targets.firstError() != null) return@PrimaryButton
+                if (kind != 2 && targets.firstError() != null) return@PrimaryButton
                 if (kind == 0 && instValid && res != null) {
                     Store.addInstallments(title, party, "", res.amount, res.count, step, first, paidN, res.lastAmount, targets.toTargets())
                     app.toast("«${title.trim()}» ثبت شد")
                 } else if (kind == 1 && debtValid) {
                     Store.addDebt(dTitle, dParty, dNote, if (dir == 0) Dir.OWE else Dir.OWED, dTotalN, dPaidN, dDue, targets.toTargets())
                     app.toast("«${dTitle.trim()}» ثبت شد")
+                } else if (kind == 2 && chequeValid) {
+                    Store.addCheque(cTitle, cParty, cNote, if (cDir == 0) Dir.OWE else Dir.OWED, cAmountN, cDue!!, cNo, cBank)
+                    app.toast("«${cTitle.trim()}» ثبت شد")
                 } else return@PrimaryButton
                 close()
                 if (wasEmpty && !Reminders.canNotify(ctx)) app.requestNotif()
@@ -277,11 +315,13 @@ fun AddSheet(app: AppState, onDismiss: () -> Unit) {
                 initial = when (pick) {
                     "first" -> first
                     "end" -> endDate ?: Jalali.schedule(first, 12, step).last()
+                    "cdue" -> cDue
                     else -> dDue
                 },
                 title = when (pick) {
                     "first" -> "تاریخ اولین قسط"
                     "end" -> "تاریخ آخرین قسط"
+                    "cdue" -> "تاریخ سررسید چک"
                     else -> "تاریخ سررسید"
                 },
                 onDismiss = { pick = null },
@@ -289,6 +329,7 @@ fun AddSheet(app: AppState, onDismiss: () -> Unit) {
                 when (pick) {
                     "first" -> first = it
                     "end" -> endDate = it
+                    "cdue" -> cDue = it
                     else -> dDue = it
                 }
                 pick = null
@@ -352,6 +393,8 @@ fun EditItemSheet(item: Item, onDismiss: () -> Unit) {
         var total by remember { mutableStateOf(item.total.toString()) }
         var due by remember { mutableStateOf(item.due) }
         var dir by remember { mutableIntStateOf(if (item.dir == Dir.OWE) 0 else 1) }
+        var chequeNo by remember { mutableStateOf(item.chequeNo) }
+        var bank by remember { mutableStateOf(item.bank) }
         var pick by remember { mutableStateOf(false) }
         var tried by remember { mutableStateOf(false) }
         val targets = remember { androidx.compose.runtime.mutableStateListOf<TargetDraft>().also { it.addAll(item.targets.toDrafts()) } }
@@ -369,12 +412,26 @@ fun EditItemSheet(item: Item, onDismiss: () -> Unit) {
                     T("قسط‌های پرداخت‌شده بدون تغییر می‌مانند. برای تغییر تاریخ یا مبلغ یک قسط خاص، روی همان قسط بزنید.", 12, color = G.c.muted)
                 }
             } else {
-                Segmented(listOf("بدهکارم", "طلبکارم"), dir, { dir = it })
-                MoneyField("مبلغ کل", total, { total = it }, unit, error = tried && (total.toLongOrNull() ?: 0) <= 0)
-                DateField("سررسید", due, { pick = true }, placeholder = "بدون سررسید", onClear = { due = null })
+                if (item.kind == Kind.CHEQUE) {
+                    Segmented(listOf("چک صادره", "چک دریافتی"), dir, { dir = it })
+                } else {
+                    Segmented(listOf("بدهکارم", "طلبکارم"), dir, { dir = it })
+                }
+                MoneyField(if (item.kind == Kind.CHEQUE) "مبلغ چک" else "مبلغ کل", total, { total = it }, unit, error = tried && (total.toLongOrNull() ?: 0) <= 0)
+                if (item.kind == Kind.CHEQUE) {
+                    DateField("تاریخ سررسید", due, { pick = true }, hint = if (tried && due == null) "تاریخ سررسید را انتخاب کنید" else null)
+                    GField("بانک", bank, { bank = it }, placeholder = "مثلاً بانک ملی")
+                    GField(
+                        "شماره چک یا شناسه‌ی صیاد", chequeNo, { chequeNo = it.digitsOnly().take(16) },
+                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Number,
+                        transformation = remember { DigitsTransformation(false) }, ltr = true,
+                    )
+                } else {
+                    DateField("سررسید", due, { pick = true }, placeholder = "بدون سررسید", onClear = { due = null })
+                }
             }
             GField("یادداشت", note, { note = it }, singleLine = false, imeAction = androidx.compose.ui.text.input.ImeAction.Done)
-            TargetsEditor(targets, unit, tried)
+            if (item.kind != Kind.CHEQUE) TargetsEditor(targets, unit, tried)
             Spacer(Modifier.height(4.dp))
         }
         SheetFooter {
@@ -389,9 +446,13 @@ fun EditItemSheet(item: Item, onDismiss: () -> Unit) {
                     if (item.installments.any { it.paidAt == null } && a != item.firstUnpaidAmount()) Store.setUnpaidAmount(item.id, a)
                 } else {
                     val t = total.toLongOrNull() ?: 0L
-                    if (t <= 0) return@PrimaryButton
+                    if (t <= 0 || (item.kind == Kind.CHEQUE && due == null)) return@PrimaryButton
                     Store.updateItem(item.id) {
-                        it.copy(title = title.trim(), party = party.trim(), note = note.trim(), total = t, due = due, dir = if (dir == 0) Dir.OWE else Dir.OWED, targets = newTargets)
+                        it.copy(
+                            title = title.trim(), party = party.trim(), note = note.trim(), total = t, due = due,
+                            dir = if (dir == 0) Dir.OWE else Dir.OWED, targets = newTargets,
+                            chequeNo = chequeNo, bank = bank.trim(),
+                        )
                     }
                 }
                 close()
@@ -564,6 +625,56 @@ fun PayInstallmentSheet(app: AppState, item: Item, instId: String, onDismiss: ()
             GhostButton("انصراف", { close() }, Modifier.fillMaxWidth())
         }
         if (pick) JalaliPickerDialog(date, "تاریخ پرداخت", { pick = false }) { date = it; pick = false }
+    }
+}
+
+// ====================================================================== cheque passed / cashed
+
+@Composable
+fun ChequeSettleSheet(app: AppState, item: Item, onDismiss: () -> Unit) {
+    GSheet(onDismiss) { close ->
+        val c = G.c
+        val unit = Store.settings.unit
+        val owe = item.dir == Dir.OWE
+        var date by remember { mutableStateOf(Store.today) }
+        var pick by remember { mutableStateOf(false) }
+        val due = item.due
+        val lateDays = if (due != null) daysBetween(due, Store.today) else 0L
+
+        SheetTitle(if (owe) "چک پاس شد؟" else "چک وصول شد؟")
+        Column(
+            Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp),
+        ) {
+            GCard(bg = c.surface2, border = c.line, radius = 18) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    T(item.title, 16, FontWeight.Bold)
+                    val sub = listOf(item.party, item.bank).filter { it.isNotBlank() }.joinToString(" · ")
+                    if (sub.isNotBlank()) T(sub, 12, color = c.muted)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        T("مبلغ چک", 13, color = c.ink2)
+                        T("${fmtNum(item.remaining)} $unit", 18, FontWeight.Bold)
+                    }
+                    if (due != null) Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        T("سررسید", 13, color = c.ink2)
+                        T(fmtDate(due), 14, FontWeight.SemiBold)
+                    }
+                    if (lateDays > 0) Pill("${lateDays.toInt().fa()} روز از سررسید گذشته", Tone.Danger)
+                }
+            }
+            DateField(if (owe) "تاریخ پاس شدن" else "تاریخ وصول", date, { pick = true })
+            Spacer(Modifier.height(4.dp))
+        }
+        SheetFooter {
+            PrimaryButton(if (owe) "بله، پاس شد" else "بله، وصول شد") {
+                Store.settleCheque(item.id, date)
+                Celebrate.burst()
+                app.toast(if (owe) "«${item.title}» پاس شد" else "«${item.title}» وصول شد", "بازگردانی") { Store.unsettleCheque(item.id) }
+                close()
+            }
+            GhostButton("انصراف", { close() }, Modifier.fillMaxWidth())
+        }
+        if (pick) JalaliPickerDialog(date, "تاریخ", { pick = false }) { date = it; pick = false }
     }
 }
 
