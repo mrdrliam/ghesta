@@ -71,8 +71,8 @@ data class TargetDraft(
     val amount: String = "",
 )
 
-private val typeLabels = listOf("کارت", "شبا", "حساب")
-private val types = listOf(TargetType.CARD, TargetType.SHEBA, TargetType.ACCOUNT)
+private val typeLabels = listOf("کارت", "شبا", "حساب", "تسهیلات")
+private val types = listOf(TargetType.CARD, TargetType.SHEBA, TargetType.ACCOUNT, TargetType.FACILITY)
 
 private fun typeName(t: TargetType) = typeLabels[types.indexOf(t)]
 
@@ -81,6 +81,7 @@ fun cleanNumber(type: TargetType, raw: String): String = when (type) {
     TargetType.CARD -> raw.digitsOnly().take(16)
     TargetType.SHEBA -> raw.trim().removePrefix("IR").removePrefix("ir").removePrefix("Ir").removePrefix("iR").digitsOnly().take(24)
     TargetType.ACCOUNT -> buildString { for (ch in raw) if (ch == '-') append(ch) else append(ch.toString().digitsOnly()) }.take(24)
+    TargetType.FACILITY -> buildString { for (ch in raw) if (ch == '-' || ch == '/') append(ch) else append(ch.toString().digitsOnly()) }.take(24)
 }
 
 /** Message that blocks saving, or null. */
@@ -90,6 +91,7 @@ fun TargetDraft.error(): String? {
         TargetType.CARD -> if (number.length != 16) "شماره کارت باید ۱۶ رقم باشد" else null
         TargetType.SHEBA -> if (number.length != 24) "شماره شبا باید ۲۴ رقم بعد از IR باشد" else null
         TargetType.ACCOUNT -> if (number.count { it.isDigit() } < 5) "شماره حساب کوتاه است" else null
+        TargetType.FACILITY -> if (number.count { it.isDigit() } < 3) "شماره تسهیلات کوتاه است" else null
     }
 }
 
@@ -132,7 +134,7 @@ fun groupNumber(type: TargetType, number: String): String = when (type) {
         val d = number.removePrefix("IR")
         "IR" + d.take(2) + (if (d.length > 2) " " + d.drop(2).chunked(4).joinToString(" ") else "")
     }
-    TargetType.ACCOUNT -> number
+    TargetType.ACCOUNT, TargetType.FACILITY -> number
 }
 
 private class NumberTransformation(private val type: TargetType) : VisualTransformation {
@@ -146,7 +148,7 @@ private class NumberTransformation(private val type: TargetType) : VisualTransfo
             val sep = when (type) {
                 TargetType.CARD -> i > 0 && i % 4 == 0
                 TargetType.SHEBA -> i == 2 || (i > 2 && (i - 2) % 4 == 0)
-                TargetType.ACCOUNT -> false
+                TargetType.ACCOUNT, TargetType.FACILITY -> false
             }
             if (sep) sb.append(' ')
             o2t[i] = sb.length
@@ -196,7 +198,7 @@ fun TargetsEditor(drafts: SnapshotStateList<TargetDraft>, unit: String, tried: B
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             T("پرداخت به (اختیاری)", 16, FontWeight.Bold, modifier = Modifier.padding(horizontal = 4.dp))
             T(
-                "شماره کارت، شبا یا حساب را بنویسید تا موقع پرداخت همین‌جا ببینید و کپی کنید. اگر چند نفر باید پول بگیرند، چند شماره اضافه کنید.",
+                "شماره کارت، شبا، حساب یا تسهیلات را بنویسید تا موقع پرداخت همین‌جا ببینید و کپی کنید. اگر چند شماره دارید، چند مورد اضافه کنید.",
                 12, color = c.muted, modifier = Modifier.padding(horizontal = 4.dp),
             )
         }
@@ -209,7 +211,7 @@ fun TargetsEditor(drafts: SnapshotStateList<TargetDraft>, unit: String, tried: B
             horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(Icons.Filled.Add, null, tint = c.gold, modifier = Modifier.size(20.dp))
-            T(if (drafts.isEmpty()) "افزودن شماره کارت، شبا یا حساب" else "افزودن شماره‌ی دیگر", 14, FontWeight.SemiBold, c.gold, Modifier.padding(start = 6.dp))
+            T(if (drafts.isEmpty()) "افزودن شماره پرداخت" else "افزودن شماره‌ی دیگر", 14, FontWeight.SemiBold, c.gold, Modifier.padding(start = 6.dp))
         }
     }
 }
@@ -237,6 +239,7 @@ private fun TargetEditCard(d: TargetDraft, tried: Boolean, unit: String, onChang
                     TargetType.CARD -> "شماره کارت"
                     TargetType.SHEBA -> "شماره شبا"
                     TargetType.ACCOUNT -> "شماره حساب"
+                    TargetType.FACILITY -> "شماره تسهیلات"
                 },
                 value = d.number,
                 onValueChange = { onChange(d.copy(number = cleanNumber(d.type, it))) },
@@ -244,16 +247,18 @@ private fun TargetEditCard(d: TargetDraft, tried: Boolean, unit: String, onChang
                     TargetType.CARD -> "۶۰۳۷ ۹۹۱۲ ۳۴۵۶ ۷۸۹۰"
                     TargetType.SHEBA -> "IR۱۲ ۳۴۵۶ …"
                     TargetType.ACCOUNT -> "شماره حساب"
+                    TargetType.FACILITY -> "مثلاً ۱۲۳۴۵۶۷۸"
                 },
-                keyboardType = if (d.type == TargetType.ACCOUNT) KeyboardType.Phone else KeyboardType.Number,
+                keyboardType = if (d.type == TargetType.ACCOUNT || d.type == TargetType.FACILITY) KeyboardType.Phone else KeyboardType.Number,
                 transformation = NumberTransformation(d.type),
                 ltr = true,
                 error = tried && err != null || hint?.second == true,
                 hint = if (tried && err != null) err else hint?.first,
             )
             GField(
-                "نام صاحب حساب (اختیاری)", d.holder, { onChange(d.copy(holder = it)) },
-                placeholder = "مثلاً علی رضایی",
+                if (d.type == TargetType.FACILITY) "نام بانک (اختیاری)" else "نام صاحب حساب (اختیاری)",
+                d.holder, { onChange(d.copy(holder = it)) },
+                placeholder = if (d.type == TargetType.FACILITY) "مثلاً بانک ملی" else "مثلاً علی رضایی",
             )
             MoneyField(
                 "مبلغ واریز به این شماره (اختیاری)", d.amount,
@@ -285,7 +290,7 @@ fun TargetsList(targets: List<PayTarget>, onCopied: (String) -> Unit, modifier: 
             val bank = when (t.type) {
                 TargetType.CARD -> Banks.cardBank(t.number)
                 TargetType.SHEBA -> Banks.shebaBank(t.number.removePrefix("IR"))
-                TargetType.ACCOUNT -> null
+                TargetType.ACCOUNT, TargetType.FACILITY -> null
             }
             Row(
                 Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
@@ -330,7 +335,7 @@ fun TargetsList(targets: List<PayTarget>, onCopied: (String) -> Unit, modifier: 
                         .border(1.dp, if (copied) c.ok.copy(alpha = 0.5f) else c.line, RoundedCornerShape(12.dp)).clickable {
                             copyText(ctx, "number", t.number)
                             flash = t.id + "n"
-                            onCopied("${typeName(t.type)} کپی شد")
+                            onCopied("شماره ${typeName(t.type)} کپی شد")
                         },
                     contentAlignment = Alignment.Center,
                 ) {

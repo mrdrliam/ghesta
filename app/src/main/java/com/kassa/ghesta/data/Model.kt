@@ -9,12 +9,14 @@ enum class Dir { OWE, OWED }
 
 enum class ItemState { DONE, OVERDUE, SOON, OK }
 
-enum class TargetType { CARD, SHEBA, ACCOUNT }
+enum class TargetType { CARD, SHEBA, ACCOUNT, FACILITY }
 
 /**
  * Where to send the money for a loan or debt: a card, Sheba (IBAN) or account number,
- * with the amount that goes to it. [number] is stored the way it is pasted into a banking app:
- * a card is 16 digits, a Sheba is "IR" + 24 digits, an account is digits (dashes allowed).
+ * with the amount that goes to it. A FACILITY is a bank's loan (تسهیلات) number, which some banks
+ * want instead of an account when you pay an installment; [holder] then holds the bank's name.
+ * [number] is stored the way it is pasted into a banking app: a card is 16 digits, a Sheba is
+ * "IR" + 24 digits, an account or facility number is digits (dashes and slashes allowed).
  */
 data class PayTarget(
     val id: String,
