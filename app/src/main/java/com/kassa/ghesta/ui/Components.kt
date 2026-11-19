@@ -30,10 +30,13 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.ModalBottomSheetProperties
+import androidx.compose.material3.SheetValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -614,23 +617,49 @@ fun DateField(
 
 // ------------------------------------------------------------------ sheet
 
+/**
+ * Bottom sheet that is closed only on purpose: with the X button, the back button, or a button inside it.
+ * Swiping the sheet down (which happens easily while scrolling a form) and tapping outside do nothing,
+ * so a half-filled form is never lost by accident.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GSheet(onDismiss: () -> Unit, content: @Composable ColumnScope.(close: () -> Unit) -> Unit) {
     val c = G.c
-    val state = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    // Hiding is vetoed unless close() asked for it: a tap on the dimmed area would otherwise still slide the sheet away.
+    val allowHide = remember { androidx.compose.runtime.mutableStateOf(false) }
+    val state = rememberModalBottomSheetState(
+        skipPartiallyExpanded = true,
+        confirmValueChange = { target -> target != SheetValue.Hidden || allowHide.value },
+    )
     val scope = rememberCoroutineScope()
-    val close: () -> Unit = { scope.launch { state.hide() }.invokeOnCompletion { onDismiss() } }
+    val close: () -> Unit = {
+        allowHide.value = true
+        scope.launch { state.hide() }.invokeOnCompletion { onDismiss() }
+    }
     ModalBottomSheet(
-        onDismissRequest = onDismiss,
+        onDismissRequest = {}, // scrim taps never close the sheet
         sheetState = state,
+        sheetGesturesEnabled = false, // no swipe-down to dismiss
+        properties = ModalBottomSheetProperties(shouldDismissOnBackPress = false),
         containerColor = c.surface,
         contentColor = c.ink,
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
         dragHandle = {
-            Box(Modifier.padding(top = 10.dp, bottom = 6.dp).width(40.dp).height(4.dp).clip(RoundedCornerShape(50)).background(c.muted.copy(alpha = 0.4f)))
+            Row(
+                Modifier.fillMaxWidth().padding(start = 14.dp, end = 14.dp, top = 10.dp),
+                horizontalArrangement = Arrangement.End,
+            ) {
+                Box(
+                    Modifier.size(38.dp).clip(CircleShape).background(c.surface2).clickable(onClick = close),
+                    contentAlignment = Alignment.Center,
+                ) { Icon(Icons.Filled.Close, "بستن", tint = c.ink2, modifier = Modifier.size(20.dp)) }
+            }
         },
-    ) { content(close) }
+    ) {
+        androidx.activity.compose.BackHandler(onBack = close)
+        content(close)
+    }
 }
 
 // ------------------------------------------------------------------ celebration
