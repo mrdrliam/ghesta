@@ -39,6 +39,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.kassa.ghesta.data.Stats
+import com.kassa.ghesta.data.Kind
 import com.kassa.ghesta.data.Store
 import com.kassa.ghesta.data.computeStats
 import com.kassa.ghesta.data.fa
@@ -53,7 +54,7 @@ fun HomeScreen(app: AppState, pad: PaddingValues) {
     val c = G.c
     val ctx = LocalContext.current
     val today = Store.today
-    val items = Store.items
+    val items = Store.items.filter { it.kind != Kind.EXPENSE }
     val unit = Store.settings.unit
     val st = remember(items, today) { computeStats(items, today) }
     // re-evaluated on every resume so the banner disappears after granting permission

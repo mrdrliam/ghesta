@@ -11,12 +11,13 @@ import android.widget.RemoteViews
 import android.widget.RemoteViewsService
 import com.kassa.ghesta.MainActivity
 import com.kassa.ghesta.R
+import com.kassa.ghesta.data.Kind
 import com.kassa.ghesta.data.Store
 import java.time.LocalDate
 
 object GhestaWidget {
     private fun content(): WidgetContent =
-        buildWidgetContent(Store.items, LocalDate.now(), Store.settings.unit, hideDetails = Store.settings.appLock)
+        buildWidgetContent(Store.items.filter { it.kind != Kind.EXPENSE }, LocalDate.now(), Store.settings.unit, hideDetails = Store.settings.appLock)
 
     private fun color(t: WidgetTone): Int = when (t) {
         WidgetTone.DANGER -> 0xFFFF8A96.toInt()

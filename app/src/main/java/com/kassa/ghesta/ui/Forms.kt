@@ -105,7 +105,8 @@ fun AddSheet(app: AppState, onDismiss: () -> Unit) {
         val unit = Store.settings.unit
         val today = Store.today
 
-        var kind by remember { mutableIntStateOf(0) }
+        var kind by remember { mutableIntStateOf(app.addKind) }
+        val ex = remember { ExpenseDraft(null, today) }
         var tried by remember { mutableStateOf(false) }
         var pick by remember { mutableStateOf<String?>(null) }
         val targets = remember { androidx.compose.runtime.mutableStateListOf<TargetDraft>() }
@@ -162,7 +163,7 @@ fun AddSheet(app: AppState, onDismiss: () -> Unit) {
 
         SheetTitle("مورد جدید")
         Box(Modifier.padding(horizontal = 20.dp, vertical = 6.dp)) {
-            Segmented(listOf("قسط / وام", "بدهی / طلب", "چک"), kind, { kind = it; tried = false })
+            Segmented(listOf("قسط و وام", "بدهی و طلب", "چک", "پرداخت"), kind, { kind = it; tried = false })
         }
 
         Column(
@@ -262,7 +263,7 @@ fun AddSheet(app: AppState, onDismiss: () -> Unit) {
                 )
                 DateField("سررسید (اختیاری)", dDue, { pick = "due" }, placeholder = "بدون سررسید", onClear = { dDue = null })
                 GField("یادداشت (اختیاری)", dNote, { dNote = it }, singleLine = false, imeAction = androidx.compose.ui.text.input.ImeAction.Done)
-            } else {
+            } else if (kind == 2) {
                 Segmented(listOf("چک صادره (من داده‌ام)", "چک دریافتی (به من داده‌اند)"), cDir, { cDir = it })
                 GField(
                     "عنوان", cTitle, { cTitle = it },
@@ -285,8 +286,10 @@ fun AddSheet(app: AppState, onDismiss: () -> Unit) {
                     transformation = remember { DigitsTransformation(false) }, ltr = true,
                 )
                 GField("یادداشت (اختیاری)", cNote, { cNote = it }, singleLine = false, imeAction = androidx.compose.ui.text.input.ImeAction.Done)
+            } else {
+                ExpenseFields(ex, tried) { pick = "exdate" }
             }
-            if (kind != 2) TargetsEditor(targets, unit, tried)
+            if (kind == 0 || kind == 1) TargetsEditor(targets, unit, tried)
             Spacer(Modifier.height(4.dp))
         }
 
@@ -294,19 +297,22 @@ fun AddSheet(app: AppState, onDismiss: () -> Unit) {
             PrimaryButton("ثبت") {
                 tried = true
                 val wasEmpty = Store.items.isEmpty()
-                if (kind != 2 && targets.firstError() != null) return@PrimaryButton
+                if ((kind == 0 || kind == 1) && targets.firstError() != null) return@PrimaryButton
                 if (kind == 0 && instValid && res != null) {
                     Store.addInstallments(title, party, "", res.amount, res.count, step, first, paidN, res.lastAmount, targets.toTargets())
                     app.toast("«${title.trim()}» ثبت شد")
                 } else if (kind == 1 && debtValid) {
                     Store.addDebt(dTitle, dParty, dNote, if (dir == 0) Dir.OWE else Dir.OWED, dTotalN, dPaidN, dDue, targets.toTargets())
                     app.toast("«${dTitle.trim()}» ثبت شد")
+                } else if (kind == 3 && ex.valid) {
+                    Store.addExpense(ex.title, ex.payee, ex.note, ex.amountN, ex.date, ex.tag, ex.targetValue())
+                    app.toast("پرداخت به «${ex.payee.ifBlank { ex.title }.trim()}» ثبت شد")
                 } else if (kind == 2 && chequeValid) {
                     Store.addCheque(cTitle, cParty, cNote, if (cDir == 0) Dir.OWE else Dir.OWED, cAmountN, cDue!!, cNo, cBank)
                     app.toast("«${cTitle.trim()}» ثبت شد")
                 } else return@PrimaryButton
                 close()
-                if (wasEmpty && !Reminders.canNotify(ctx)) app.requestNotif()
+                if (wasEmpty && kind != 3 && !Reminders.canNotify(ctx)) app.requestNotif()
             }
         }
 
@@ -316,12 +322,14 @@ fun AddSheet(app: AppState, onDismiss: () -> Unit) {
                     "first" -> first
                     "end" -> endDate ?: Jalali.schedule(first, 12, step).last()
                     "cdue" -> cDue
+                    "exdate" -> ex.date
                     else -> dDue
                 },
                 title = when (pick) {
                     "first" -> "تاریخ اولین قسط"
                     "end" -> "تاریخ آخرین قسط"
                     "cdue" -> "تاریخ سررسید چک"
+                    "exdate" -> "تاریخ پرداخت"
                     else -> "تاریخ سررسید"
                 },
                 onDismiss = { pick = null },
@@ -330,6 +338,7 @@ fun AddSheet(app: AppState, onDismiss: () -> Unit) {
                     "first" -> first = it
                     "end" -> endDate = it
                     "cdue" -> cDue = it
+                    "exdate" -> ex.date = it
                     else -> dDue = it
                 }
                 pick = null

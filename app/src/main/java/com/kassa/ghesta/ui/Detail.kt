@@ -297,7 +297,7 @@ private fun DetailHero(item: Item, info: com.kassa.ghesta.data.Info, unit: Strin
                 else -> when (item.kind) {
                     Kind.DEBT -> HeroBadge(if (item.dir == Dir.OWE) "بدهی من" else "طلب من", c.gold2)
                     Kind.CHEQUE -> HeroBadge(if (item.dir == Dir.OWE) "چک صادره" else "چک دریافتی", c.gold2)
-                    Kind.INST -> {}
+                    Kind.INST, Kind.EXPENSE -> {}
                 }
             }
         }

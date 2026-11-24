@@ -94,6 +94,15 @@ class AppState(
     var filter by mutableIntStateOf(0)
     var detailId by mutableStateOf<String?>(null)
     var showAdd by mutableStateOf(false)
+
+    /** Which tab of the add sheet opens first: 0 loan, 1 debt, 2 cheque, 3 payment. */
+    var addKind by mutableIntStateOf(0)
+
+    /** Schedule tab: 0 = what is coming, 1 = what has been paid. */
+    var scheduleMode by mutableIntStateOf(0)
+
+    /** A recorded payment (expense) whose edit sheet is open. */
+    var expenseEditId by mutableStateOf<String?>(null)
     var payForId by mutableStateOf<String?>(null)
 
     /** A cheque whose "it passed / I cashed it" confirmation sheet is open. */
@@ -157,6 +166,7 @@ class AppState(
             Kind.INST -> togglePaid(due.item.id, due.key)
             Kind.CHEQUE -> settleChequeId = due.item.id
             Kind.DEBT -> payForId = due.item.id
+            Kind.EXPENSE -> {} // already paid; never appears as a due
         }
     }
 }
@@ -267,6 +277,10 @@ private fun AppContent() {
         }
 
         if (app.showAdd) AddSheet(app) { app.showAdd = false }
+        app.expenseEditId?.let { id ->
+            val ex = Store.item(id)
+            if (ex != null) ExpenseEditSheet(app, ex) { app.expenseEditId = null } else app.expenseEditId = null
+        }
         app.settleChequeId?.let { id ->
             val ch = Store.item(id)
             if (ch != null) ChequeSettleSheet(app, ch) { app.settleChequeId = null } else app.settleChequeId = null
@@ -343,7 +357,10 @@ private fun BottomBar(app: AppState, overdueCount: Int, barH: androidx.compose.u
                 .clip(CircleShape)
                 .background(Brush.linearGradient(listOf(c.gold2, c.gold)))
                 .border(3.dp, c.bg, CircleShape)
-                .clickable { app.showAdd = true },
+                .clickable {
+                    app.addKind = if (app.tab == 2 && app.scheduleMode == 1) 3 else 0
+                    app.showAdd = true
+                },
             contentAlignment = Alignment.Center,
         ) { Icon(Icons.Filled.Add, "افزودن", tint = Color(0xFF2A1F05), modifier = Modifier.size(30.dp)) }
     }

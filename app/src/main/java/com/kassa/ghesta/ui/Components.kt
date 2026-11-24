@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.Create
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.ModalBottomSheetProperties
@@ -266,6 +267,7 @@ fun kindIcon(kind: Kind): ImageVector = when (kind) {
     Kind.INST -> Icons.Filled.DateRange
     Kind.DEBT -> Icons.Filled.Person
     Kind.CHEQUE -> Icons.Filled.Create
+    Kind.EXPENSE -> Icons.Filled.ShoppingCart
 }
 
 @Composable
@@ -445,7 +447,7 @@ fun Segmented(options: List<String>, selected: Int, onSelect: (Int) -> Unit, mod
                     .background(bg)
                     .clickable { onSelect(i) },
                 contentAlignment = Alignment.Center,
-            ) { T(label, 14, if (sel) FontWeight.Bold else FontWeight.Medium, if (sel) c.ink else c.muted) }
+            ) { T(label, if (options.size > 3) 13 else 14, if (sel) FontWeight.Bold else FontWeight.Medium, if (sel) c.ink else c.muted, maxLines = 1) }
         }
     }
 }

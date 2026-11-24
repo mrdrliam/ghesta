@@ -27,6 +27,7 @@ fun computeStats(items: List<Item>, today: LocalDate): Stats {
     var recvCount = 0
     var recvOverdue = 0
     for (it in items) {
+        if (it.kind == Kind.EXPENSE) continue // money already spent is history, not an obligation
         if (it.isObligation) {
             total += it.totalAmount
             paid += it.paidTotal

@@ -342,7 +342,7 @@ class NotifActionReceiver : BroadcastReceiver() {
                         (if (item.dir == Dir.OWE) "«${item.title}» پاس شد" else "«${item.title}» وصول شد") to
                             "ثبت شد. اگر اشتباه بود، «بازگردانی» را بزنید."
                     }
-                    Kind.DEBT -> return
+                    Kind.DEBT, Kind.EXPENSE -> return
                 }
                 Reminders.cancelDue(ctx, key)
                 Reminders.postDone(ctx, key, done.first, done.second)
@@ -353,7 +353,7 @@ class NotifActionReceiver : BroadcastReceiver() {
                 when (item.kind) {
                     Kind.INST -> Store.setPaid(itemId, dueKey, false)
                     Kind.CHEQUE -> Store.unsettleCheque(itemId)
-                    Kind.DEBT -> {}
+                    Kind.DEBT, Kind.EXPENSE -> {}
                 }
                 Reminders.cancelDone(ctx, key)
                 Reminders.postKeys(ctx, listOf(key), alert = false)

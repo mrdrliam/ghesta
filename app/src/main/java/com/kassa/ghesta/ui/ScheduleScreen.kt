@@ -39,6 +39,10 @@ private data class MonthGroup(val y: Int, val m: Int, val dues: List<Due>)
 /** Month-by-month plan: how much is due when, what is already paid. */
 @Composable
 fun ScheduleScreen(app: AppState, pad: PaddingValues) {
+    if (app.scheduleMode == 1) {
+        HistoryScreen(app, pad)
+        return
+    }
     val c = G.c
     val today = Store.today
     val items = Store.items
@@ -55,12 +59,7 @@ fun ScheduleScreen(app: AppState, pad: PaddingValues) {
     }
 
     LazyColumn(Modifier.fillMaxSize(), contentPadding = pad, verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        item {
-            Column {
-                T("برنامه‌ی پرداخت", 24, FontWeight.Bold)
-                T("ببینید هر ماه چقدر باید بپردازید", 13, color = c.muted)
-            }
-        }
+        item { ScheduleHeader(app) }
         if (groups.isEmpty()) {
             item {
                 T("هنوز سررسیدی ثبت نشده است.", 14, color = c.muted, align = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(vertical = 40.dp))

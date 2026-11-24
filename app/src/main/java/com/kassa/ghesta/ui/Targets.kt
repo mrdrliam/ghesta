@@ -217,7 +217,10 @@ fun TargetsEditor(drafts: SnapshotStateList<TargetDraft>, unit: String, tried: B
 }
 
 @Composable
-private fun TargetEditCard(d: TargetDraft, tried: Boolean, unit: String, onChange: (TargetDraft) -> Unit, onDelete: () -> Unit) {
+internal fun TargetEditCard(
+    d: TargetDraft, tried: Boolean, unit: String, onChange: (TargetDraft) -> Unit, onDelete: () -> Unit,
+    showAmount: Boolean = true,
+) {
     val c = G.c
     val err = d.error()
     val hint = d.hint()
@@ -260,7 +263,7 @@ private fun TargetEditCard(d: TargetDraft, tried: Boolean, unit: String, onChang
                 d.holder, { onChange(d.copy(holder = it)) },
                 placeholder = if (d.type == TargetType.FACILITY) "مثلاً بانک ملی" else "مثلاً علی رضایی",
             )
-            MoneyField(
+            if (showAmount) MoneyField(
                 "مبلغ واریز به این شماره (اختیاری)", d.amount,
                 { onChange(d.copy(amount = it)) }, unit,
             )
@@ -357,4 +360,52 @@ fun TargetsCard(targets: List<PayTarget>, title: String, subtitle: String?, onCo
         }
         GCard { TargetsList(targets, onCopied) }
     }
+}
+
+
+/**
+ * "Where did the money go" for a single payment: optional, one card / Sheba / account / facility number.
+ * [holderDefault] pre-fills the holder's name (usually the payee).
+ */
+@Composable
+fun DestinationEditor(
+    value: TargetDraft?,
+    onChange: (TargetDraft?) -> Unit,
+    tried: Boolean,
+    holderDefault: String,
+    modifier: Modifier = Modifier,
+) {
+    val c = G.c
+    Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        T("واریز شد به (اختیاری)", 12, FontWeight.Medium, c.ink2, Modifier.padding(horizontal = 4.dp))
+        if (value == null) {
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).border(1.dp, c.gold.copy(alpha = 0.5f), RoundedCornerShape(16.dp))
+                    .clickable { onChange(TargetDraft(holder = holderDefault)) }.padding(vertical = 13.dp),
+                horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(Icons.Filled.Add, null, tint = c.gold, modifier = Modifier.size(20.dp))
+                T("افزودن شماره کارت، شبا یا حساب", 14, FontWeight.SemiBold, c.gold, Modifier.padding(start = 6.dp))
+            }
+        } else {
+            TargetEditCard(value, tried, Store.settings.unit, onChange = { onChange(it) }, onDelete = { onChange(null) }, showAmount = false)
+        }
+    }
+}
+
+/** "کارت ۷۸۹۳ · بانک ملی" — a short, recognisable description of where a payment went. */
+fun destinationText(t: PayTarget): String {
+    val bank = when (t.type) {
+        TargetType.CARD -> Banks.cardBank(t.number)
+        TargetType.SHEBA -> Banks.shebaBank(t.number.removePrefix("IR"))
+        else -> null
+    }
+    val what = when (t.type) {
+        TargetType.CARD -> "کارت ${t.number.takeLast(4).fa()}"
+        TargetType.SHEBA -> "شبا ${t.number.takeLast(4).fa()}"
+        // numbers with dashes or slashes must keep their order inside right-to-left text: wrap them in an LTR isolate
+        TargetType.ACCOUNT -> "حساب \u2066${t.number.fa()}\u2069"
+        TargetType.FACILITY -> "تسهیلات \u2066${t.number.fa()}\u2069"
+    }
+    return listOfNotNull(what, bank ?: t.holder.takeIf { it.isNotBlank() && t.type == TargetType.FACILITY }).joinToString("، ")
 }

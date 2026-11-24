@@ -43,7 +43,7 @@ private fun rank(i: Info) = when (i.state) {
 fun ItemsScreen(app: AppState, pad: PaddingValues) {
     val c = G.c
     val today = Store.today
-    val items = Store.items
+    val items = Store.items.filter { it.kind != Kind.EXPENSE } // expenses live in the payment history, not here
     val rows = remember(items, today) { items.map { it to it.info(today) } }
 
     fun matches(f: Int, p: Pair<Item, Info>) = when (f) {
@@ -110,7 +110,7 @@ fun ItemCard(item: Item, info: Info, today: LocalDate, onClick: () -> Unit) {
                         when (item.kind) {
                             Kind.DEBT -> Pill(if (item.dir == Dir.OWE) "بدهی من" else "طلب من", Tone.Gold)
                             Kind.CHEQUE -> Pill(if (item.dir == Dir.OWE) "چک صادره" else "چک دریافتی", Tone.Gold)
-                            Kind.INST -> {}
+                            Kind.INST, Kind.EXPENSE -> {}
                         }
                     }
                     val sub = if (item.kind == Kind.CHEQUE) listOf(item.party, item.bank).filter { it.isNotBlank() }.joinToString(" · ") else item.party

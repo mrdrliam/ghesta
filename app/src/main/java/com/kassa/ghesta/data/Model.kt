@@ -2,7 +2,7 @@ package com.kassa.ghesta.data
 
 import java.time.LocalDate
 
-enum class Kind { INST, DEBT, CHEQUE }
+enum class Kind { INST, DEBT, CHEQUE, EXPENSE }
 
 /** OWE = I owe someone. OWED = someone owes me. */
 enum class Dir { OWE, OWED }
@@ -43,7 +43,9 @@ data class Payment(
  * One tracked obligation. [Kind.INST] has a schedule of [installments];
  * [Kind.DEBT] has a [total], an optional [due] date and a list of partial [payments];
  * [Kind.CHEQUE] is a single amount ([total]) that is settled on [due]: [Dir.OWE] is a cheque I issued
- * (it must be covered), [Dir.OWED] a cheque I received (I must cash it). It is settled by one payment.
+ * (it must be covered), [Dir.OWED] a cheque I received (I must cash it). It is settled by one payment;
+ * [Kind.EXPENSE] is a payment that has already been made (the electrician, a utility bill): one [payments] entry,
+ * the payee in [party], a free [tag], and where the money went in [targets]. It never needs a reminder.
  */
 data class Item(
     val id: String,
@@ -59,6 +61,8 @@ data class Item(
     val payments: List<Payment> = emptyList(),
     /** Cards / accounts to pay into (optional). */
     val targets: List<PayTarget> = emptyList(),
+    /** Expense only: a free label such as "ساختمان" or "قبض" that reports group by. */
+    val tag: String = "",
     /** Cheque only: serial or Sayad number, and the bank it is drawn on. */
     val chequeNo: String = "",
     val bank: String = "",
@@ -82,6 +86,7 @@ data class Due(
         get() = when {
             item.kind == Kind.INST -> "قسط ${n.fa()} از ${of.fa()}"
             item.kind == Kind.CHEQUE -> if (item.dir == Dir.OWE) "چک صادره" else "چک دریافتی"
+            item.kind == Kind.EXPENSE -> "پرداخت"
             item.dir == Dir.OWE -> "بدهی"
             else -> "طلب"
         }
@@ -105,27 +110,28 @@ data class Info(
 val Item.paidTotal: Long
     get() = when (kind) {
         Kind.INST -> installments.filter { it.paidAt != null }.sumOf { it.amount }
-        Kind.DEBT, Kind.CHEQUE -> payments.sumOf { it.amount }
+        Kind.DEBT, Kind.CHEQUE, Kind.EXPENSE -> payments.sumOf { it.amount }
     }
 
 val Item.totalAmount: Long
     get() = when (kind) {
         Kind.INST -> installments.sumOf { it.amount }
-        Kind.DEBT, Kind.CHEQUE -> total
+        Kind.DEBT, Kind.CHEQUE, Kind.EXPENSE -> total
     }
 
 val Item.remaining: Long get() = (totalAmount - paidTotal).coerceAtLeast(0)
 
 /** Receivables (someone owes me) never count as my obligations. */
-val Item.isObligation: Boolean get() = !(kind != Kind.INST && dir == Dir.OWED)
+val Item.isObligation: Boolean get() = kind != Kind.EXPENSE && !(kind != Kind.INST && dir == Dir.OWED)
 
 /** Everything that is a single sum with an optional due date (a debt, or a cheque). */
-val Item.isLumpSum: Boolean get() = kind != Kind.INST
+val Item.isLumpSum: Boolean get() = kind == Kind.DEBT || kind == Kind.CHEQUE
 
 fun Item.dues(): List<Due> = when (kind) {
     Kind.INST -> installments.mapIndexed { i, x ->
         Due(this, x.id, i + 1, installments.size, x.due, x.amount, x.paidAt != null)
     }
+    Kind.EXPENSE -> emptyList() // already paid; there is nothing to remind about
     Kind.DEBT, Kind.CHEQUE -> {
         val rem = remaining
         val d = due
@@ -141,12 +147,12 @@ fun Item.info(today: LocalDate): Info {
     val next = unpaid.firstOrNull { !it.date.isBefore(today) }
     val done = when (kind) {
         Kind.INST -> installments.isNotEmpty() && installments.all { it.paidAt != null }
-        Kind.DEBT, Kind.CHEQUE -> total > 0 && remaining <= 0
+        Kind.DEBT, Kind.CHEQUE, Kind.EXPENSE -> total > 0 && remaining <= 0
     }
     val count = if (kind == Kind.INST) installments.size else 1
     val paidCount = when (kind) {
         Kind.INST -> installments.count { it.paidAt != null }
-        Kind.DEBT, Kind.CHEQUE -> if (done) 1 else 0
+        Kind.DEBT, Kind.CHEQUE, Kind.EXPENSE -> if (done) 1 else 0
     }
     val state = when {
         done -> ItemState.DONE

@@ -59,7 +59,7 @@ class NotifPlan(
 fun payLabelFor(d: Due): String? = when (d.item.kind) {
     Kind.INST -> "پرداخت شد"
     Kind.CHEQUE -> if (d.item.dir == Dir.OWE) "پاس شد" else "وصول شد"
-    Kind.DEBT -> null
+    Kind.DEBT, Kind.EXPENSE -> null
 }
 
 /**

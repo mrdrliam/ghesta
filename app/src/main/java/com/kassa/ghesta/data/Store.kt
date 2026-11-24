@@ -109,6 +109,32 @@ object Store {
         return item.id
     }
 
+    /** Records a payment that has already been made (the electrician, a bill). It lands in the payment history. */
+    fun addExpense(
+        title: String, payee: String, note: String, amount: Long, date: LocalDate,
+        tag: String, target: PayTarget?,
+    ): String {
+        val item = Item(
+            newId(), Kind.EXPENSE, title.trim().ifBlank { payee.trim() }, payee.trim(), note.trim(), today,
+            dir = Dir.OWE, total = amount, payments = listOf(Payment(newId(), date, amount)),
+            targets = listOfNotNull(target?.copy(amount = amount)), tag = tag.trim(),
+        )
+        mutate { it + item }
+        return item.id
+    }
+
+    fun updateExpense(
+        id: String, title: String, payee: String, note: String, amount: Long, date: LocalDate,
+        tag: String, target: PayTarget?,
+    ) = updateItem(id) { old ->
+        val pid = old.payments.firstOrNull()?.id ?: newId()
+        old.copy(
+            title = title.trim().ifBlank { payee.trim() }, party = payee.trim(), note = note.trim(),
+            total = amount, payments = listOf(Payment(pid, date, amount)),
+            targets = listOfNotNull(target?.copy(amount = amount)), tag = tag.trim(),
+        )
+    }
+
     /** A cheque is covered / cashed in one go: record a payment of everything that is left. */
     fun settleCheque(itemId: String, date: LocalDate) {
         val item = item(itemId) ?: return
@@ -124,6 +150,9 @@ object Store {
     fun updateItem(id: String, transform: (Item) -> Item) = mutate { list -> list.map { if (it.id == id) transform(it) else it } }
 
     fun delete(id: String) = mutate { list -> list.filterNot { it.id == id } }
+
+    /** Puts back an item that was just deleted (the "undo" of a delete). It keeps its id, so it also reappears on the server. */
+    fun restoreItem(item: Item) = mutate { list -> if (list.any { it.id == item.id }) list else list + item }
 
     fun setPaid(itemId: String, instId: String, paid: Boolean, date: LocalDate = today) = updateItem(itemId) { item ->
         item.copy(installments = item.installments.map { if (it.id == instId) it.copy(paidAt = if (paid) date else null) else it })
@@ -390,7 +419,7 @@ object Store {
             put("dir", dir.name); put("total", total)
             put("due", due?.toString() ?: JSONObject.NULL)
             put("updatedAt", updatedAt)
-            put("chequeNo", chequeNo); put("bank", bank); put("bounced", bounced)
+            put("chequeNo", chequeNo); put("bank", bank); put("bounced", bounced); put("tag", tag)
             put("installments", JSONArray().also { a ->
                 installments.forEach {
                     a.put(JSONObject().put("id", it.id).put("due", it.due.toString()).put("amount", it.amount)
@@ -445,6 +474,7 @@ object Store {
             chequeNo = o.optString("chequeNo", ""),
             bank = o.optString("bank", ""),
             bounced = o.optBoolean("bounced", false),
+            tag = o.optString("tag", ""),
             updatedAt = o.optLong("updatedAt", 0),
         )
     }
